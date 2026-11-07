@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>¡Panzer Vor!</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Black+Ops+One&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body data-scene="menu" class="locked">
+<div id="app">
+
+  <!-- Fondo + efectos -->
+  <div id="bg"><div class="bg-img"></div></div>
+  <div class="fx fx-grid"></div>
+  <div class="fx fx-vignette"></div>
+
+  <!-- ESCENA: MENÚ -->
+  <section id="scene-menu" class="scene active">
+    <div class="menu-coords"><span>N 52°31'</span><span>E 013°24'</span><span>GRID 17-A</span></div>
+    <div class="title-block">
+      <h1 class="game-title">¡Panzer <img class="title-logo" src="assets/imagenes/logo/logo.png" alt="" onerror="this.style.display='none'"> Vor!</h1>
+      <p class="game-sub">TACTICAL TANK OPERATIONS</p>
+    </div>
+    <nav class="menu-buttons">
+      <button class="mbtn" id="btn-start"><span>INICIAR PARTIDA</span></button>
+      <button class="mbtn" id="btn-gallery"><span>GALERÍA</span></button>
+      <button class="mbtn" id="btn-credits"><span>CRÉDITOS</span></button>
+      <button class="mbtn" id="btn-options"><span>OPCIONES</span></button>
+    </nav>
+  </section>
+
+  <!-- ESCENA: SELECCIÓN (nación / comandante / tanque) -->
+  <section id="scene-select" class="scene">
+    <header class="guide">
+      <button class="back-link" id="btn-back-menu">‹ MENÚ</button>
+      <h2>SELECCIONE SU NACIÓN, COMANDANTE Y TANQUE</h2>
+      <ol class="progress" id="progress">
+        <li data-step="nation">NACIÓN</li><li class="sep">→</li>
+        <li data-step="commander">COMANDANTE</li><li class="sep">→</li>
+        <li data-step="tank">TANQUE</li>
+      </ol>
+    </header>
+
+    <div id="nation-strip"></div>
+
+    <div id="faction-head">
+      <img id="fh-emblem" alt="" class="fh-img">
+      <div class="fh-name" id="fh-name">—</div>
+      <img id="fh-flag" alt="" class="fh-flag">
+    </div>
+
+    <div id="stage">
+      <div id="view-chars" class="view active">
+        <div class="char-col">
+          <div class="panel-label">PERSONAJES</div>
+          <div id="char-grid"></div>
+          <div class="hint">Clic: ver ficha · Doble clic: elegir comandante</div>
+        </div>
+        <div id="char-card">
+          <div class="char-figure"><img id="cc-img" alt=""></div>
+          <div class="char-info">
+            <div class="tag" id="cc-tag"></div>
+            <h3 id="cc-name">—</h3>
+            <dl>
+              <dt>FECHA DE NACIMIENTO</dt><dd id="cc-birth">—</dd>
+              <dt>ALTURA</dt><dd id="cc-height">—</dd>
+              <dt>DESCRIPCIÓN</dt><dd id="cc-desc">—</dd>
+              <dt>PASIVA</dt><dd class="passive"><b id="cc-pname">—</b><span id="cc-pdesc">—</span></dd>
+            </dl>
+          </div>
+        </div>
+        <button class="arrow arrow-r" id="arrow-right" aria-label="Ir a tanques"><i></i></button>
+      </div>
+
+      <div id="view-tanks" class="view">
+        <button class="arrow arrow-l" id="arrow-left" aria-label="Volver a personajes"><i></i></button>
+        <div class="tank-col">
+          <div class="panel-label">TANQUES</div>
+          <div id="tank-list"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="toast"></div>
+    <button class="next-btn" id="btn-next"><span>SIGUIENTE</span></button>
+  </section>
+
+  <!-- ESCENA: GALERÍA (personajes y tanques por nación, con información detallada) -->
+  <section id="scene-gallery" class="scene">
+    <header class="guide">
+      <button class="back-link" id="btn-back-gallery">‹ MENÚ</button>
+      <h2>GALERÍA</h2>
+      <div class="gtabs" id="gal-tabs">
+        <i class="gtab-ind"></i>
+        <button data-tab="chars" class="on">PERSONAJES</button>
+        <button data-tab="tanks">TANQUES</button>
+      </div>
+    </header>
+    <div id="gal-strip"></div>
+    <div id="gal-body">
+      <aside id="gal-list-wrap">
+        <div class="panel-label" id="gal-list-label">PERSONAJES</div>
+        <div id="gal-list">
+          <table id="gal-table">
+            <thead></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </aside>
+      <article id="gal-detail">
+        <div class="g-art">
+          <div class="g-frame" id="g-frame"></div>
+          <div class="g-thumbs" id="g-thumbs"></div>
+        </div>
+        <div class="g-info" id="g-info"></div>
+      </article>
+    </div>
+  </section>
+
+  <!-- ESCENA: MISIONES -->
+  <section id="scene-missions" class="scene">
+    <div id="map-bg"></div>
+    <svg id="map-terrain" preserveAspectRatio="xMidYMid slice" viewBox="0 0 1600 900"></svg>
+    <svg id="map-links" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>
+    <div id="map-nodes"></div>
+    <header class="map-head">
+      <button class="back-link" id="btn-back-select">‹ VOLVER</button>
+      <h2 id="map-title">MAPA DE MISIONES</h2>
+    </header>
+    <aside class="loadout" id="loadout"></aside>
+    <div id="toast2" class="toast2"></div>
+  </section>
+
+  <!-- Tocadiscos: disco giratorio con notas; al hacer clic muestra título, progreso y pausa/reproducir -->
+  <div id="player-ov"></div>
+  <div id="player-card">
+    <small>AHORA SUENA</small>
+    <h3 id="pl-title">—</h3>
+    <div class="pl-bar" id="pl-bar"><i id="pl-fill"></i></div>
+    <div class="pl-times"><span id="pl-cur">0:00</span><span id="pl-dur">--:--</span></div>
+    <button id="pl-toggle" aria-label="Pausar o reproducir"></button>
+  </div>
+  <button id="disc" aria-label="Reproductor de música"><span class="disc-img"></span><i class="disc-hole"></i></button>
+  <div id="disc-notes"></div>
+
+  <!-- Transición cinematográfica -->
+<!-- Pantalla de carga (logo + espiral). Se muestra con pvLoader.show() en cada transición/carga -->
+<div id="pv-loader" aria-hidden="true">
+  <div class="pvl-box"><svg class="pvl-spiral" viewBox="-100 -100 200 200"></svg><img class="pvl-logo" src="assets/imagenes/logo/logo.png" alt="" onerror="this.style.visibility='hidden'"></div>
+  <p class="pvl-txt">CARGANDO</p>
+</div>
+
+  <!-- Pop-up de bienvenida -->
+  <div id="welcome" class="modal open">
+    <div class="modal-box welcome-box">
+      <div class="corner tl"></div><div class="corner br"></div>
+      <h2 id="w-title"></h2>
+      <p id="w-text"></p>
+      <button class="mbtn small" id="w-btn"><span>CONTINUAR</span></button>
+    </div>
+  </div>
+
+  <!-- Créditos -->
+  <div id="credits" class="modal">
+    <div class="modal-box credits-box">
+      <div class="corner tl"></div><div class="corner br"></div>
+      <h2>CRÉDITOS</h2>
+      <div id="credits-list"></div>
+      <button class="mbtn small" data-close="credits"><span>CERRAR</span></button>
+    </div>
+  </div>
+
+  <!-- Opciones -->
+  <div id="options" class="modal">
+    <div class="modal-box options-box">
+      <div class="corner tl"></div><div class="corner br"></div>
+      <h2>OPCIONES</h2>
+      <!-- Sliders de volumen (los maneja initOptions() en main.js; data-vol dice cuál controlan) -->
+      <div class="opt-list">
+        <div class="opt-row"><label for="opt-master">VOLUMEN MAESTRO</label><input id="opt-master" class="opt-range" type="range" min="0" max="100" step="1" data-vol="master"><b>100</b></div>
+        <div class="opt-row"><label for="opt-music">VOLUMEN DE MÚSICA</label><input id="opt-music" class="opt-range" type="range" min="0" max="100" step="1" data-vol="music"><b>60</b></div>
+        <div class="opt-row"><label for="opt-sfx">VOLUMEN DE EFECTOS</label><input id="opt-sfx" class="opt-range" type="range" min="0" max="100" step="1" data-vol="sfx"><b>100</b><small>botones, tanques, disparos y voces</small></div>
+      </div>
+      <button class="mbtn small" data-close="options"><span>CERRAR</span></button>
+    </div>
+  </div>
+</div>
+<script src="js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>¡Panzer Vor! — Pravda · Misión 1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Black+Ops+One&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/pravda-mision1.css">
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<!-- Cabecera: carpeta de misión + pausa/menú -->
+<header id="hud-top">
+  <div class="mwrap">
+    <button id="btn-mission" class="folder" data-tip="Ver la misión y su objetivo" aria-label="Misión">
+      <svg viewBox="0 0 64 56" width="46" height="40" aria-hidden="true">
+        <path d="M4 10a4 4 0 0 1 4-4h16l6 6h26a4 4 0 0 1 4 4v32a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4z" fill="#8a7a4a" stroke="#2b2412" stroke-width="2"/>
+        <rect x="9" y="15" width="46" height="26" rx="1" fill="#e9e4cf" stroke="#2b2412" stroke-width="1.4" transform="rotate(-2 32 28)"/>
+        <path d="M14 22h30M14 27h26M14 32h30" stroke="#6b6a58" stroke-width="2"/>
+        <path d="M4 22a4 4 0 0 1 4-4h48a4 4 0 0 1 4 4v26a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4z" fill="#b39a58" stroke="#2b2412" stroke-width="2"/>
+        <rect x="40" y="30" width="14" height="9" fill="#c4402f" opacity=".85" transform="rotate(-6 47 34)"/>
+      </svg>
+    </button>
+    <div id="mission-pop" class="mbox">
+      <small>MISIÓN</small>
+      <h1 id="mission-title">PRAVDA — MISIÓN 1</h1>
+      <p><span>FASE</span> <b id="mission-part"></b></p>
+      <p><span>OBJETIVO</span> <b id="mission-obj"></b></p>
+    </div>
+  </div>
+  <div class="top-btns">
+    <button id="btn-pause" class="sq" data-tip="Pausar el juego y abrir el menú (P / ESC)">❚❚</button>
+    <button id="btn-menu" class="sq" data-snd="cancel" data-tip="Salir al menú principal (pide confirmación)">MENÚ</button>
+  </div>
+</header>
+
+<!-- Panel de información de la unidad -->
+<!-- Columna derecha: información de la unidad y, debajo, el botón de refuerzos -->
+<div id="side">
+<aside id="panel">
+  <div class="p-head" id="pn-head">INFORMACIÓN DE UNIDAD</div>
+  <div id="pn-empty">Selecciona un tanque aliado<br><small>clic sobre él · arrastra en el mapa para seleccionar varias · arrastra a un destino para moverlas en formación</small></div>
+  <div id="pn-body">
+    <div class="p-id">
+      <div id="pn-img"></div>
+      <div class="p-names"><h2 id="pn-name"></h2><span id="pn-role"></span></div>
+    </div>
+    <div class="hp"><div class="lbl"><span>VIDA</span><b id="pn-hp-txt"></b></div><div class="bar"><i id="pn-hp-fill"></i></div></div>
+    <div id="pn-stats">
+      <div class="row" id="pn-conf"><span>CONFIANZA</span><div class="bar"><i></i></div><b>0</b></div>
+      <div class="row" id="pn-stress"><span>ESTRÉS</span><div class="bar"><i></i></div><b>0</b></div>
+      <div class="row" id="pn-stab"><span>ESTABILIDAD</span><div class="bar"><i></i></div><b>0</b></div>
+    </div>
+    <div class="mood"><span>ESTADO</span><b id="pn-mood"></b></div>
+    <div id="pn-passive"></div>
+  </div>
+  <div id="pn-allies">ALIADOS VIVOS: 0/0</div>
+</aside>
+<div id="reinf-wrap">
+  <button id="btn-reinf" data-tip="Llamar un T-34 de refuerzo (R): cuesta 160 puntos. +100 por enemigo destruido, −25 por aliado perdido">
+    <span class="rb-title">LLAMAR REFUERZOS</span>
+    <span class="rb-row"><b id="reinf-pts">0 PTS</b><em id="reinf-count"></em></span>
+    <span class="rb-bar"><i id="reinf-bar"></i></span>
+    <span class="rb-sub" id="reinf-sub"></span>
+  </button>
+</div>
+</div>
+
+<!-- Fase de la misión (cuenta atrás de preparación / asalto) y barra de captura enemiga -->
+<div id="phase-wrap">
+  <div id="phase-box" data-phase="prep">
+    <div><span id="phase-title"></span><span id="phase-time"></span><span id="phase-sub"></span></div>
+    <button id="btn-skip" data-tip="Saltar la espera y empezar el asalto ahora">SALTAR ESPERA</button>
+  </div>
+  <div id="cap-box"><span id="cap-txt"></span><div id="cap-bar"><i id="cap-fill"></i></div></div>
+</div>
+
+<!-- Botones inferiores (solo imagen; el texto aparece al pasar el cursor) -->
+<footer id="hud-bottom">
+  <button id="btn-cmd" class="ibtn" data-tip="Ir al comandante (C)" aria-label="Ir al comandante"></button>
+  <button id="btn-idle" class="ibtn" data-tip="Ir a una unidad inactiva (I)" aria-label="Unidad inactiva"></button>
+  <div id="form-wrap">
+    <div id="form-fly">
+      <button class="ibtn fopt" data-form="wedge" data-tip="Formación en flecha (V)" aria-label="Flecha"></button>
+      <button class="ibtn fopt" data-form="column" data-tip="Columna: uno detrás de otro (convoy)" aria-label="Columna"></button>
+      <button class="ibtn fopt" data-form="line" data-tip="Línea: todos uno al lado del otro" aria-label="Línea"></button>
+    </div>
+    <button id="btn-form" class="ibtn" data-tip="Cambiar formación de movimiento (F)" aria-label="Formación"></button>
+  </div>
+</footer>
+<div id="ui-tip" role="tooltip"></div>
+<div id="help">Arrastra en el mapa = recuadro de selección (Q = todos) · arrastra desde un tanque = mover en formación · clic derecho = mover / atacar al enemigo señalado · R = llamar refuerzos · F = formación · rueda = zoom · WASD / clic central = cámara · ESC = menú de pausa</div>
+
+<!-- Pantalla de carga (logo + espiral). Se muestra con pvLoader.show() en cada transición/carga -->
+<div id="pv-loader" aria-hidden="true">
+  <div class="pvl-box"><svg class="pvl-spiral" viewBox="-100 -100 200 200"></svg><img class="pvl-logo" src="../assets/imagenes/logo/logo.png" alt="" onerror="this.style.visibility='hidden'"></div>
+  <p class="pvl-txt">CARGANDO</p>
+</div>
+
+<div id="toasts"></div>
+
+<!-- Rótulo de cada asalto (y barras / fundido heredados del motor) -->
+<div id="cine-bars" aria-hidden="true"><i></i><i></i></div>
+<div id="cine-cap" aria-hidden="true"><small id="cine-cap-s"></small><b id="cine-cap-b"></b></div>
+<div id="cine-fade" aria-hidden="true"></div>
+
+<!-- Menú de pausa (tecla ESC): tres pantallas dentro de la misma tarjeta -->
+<div id="pause-ov"><div class="card">
+  <!-- 1) Principal: reanudar / opciones / salir -->
+  <div id="pm-main" class="pm on">
+    <h2>PAUSA</h2>
+    <button id="btn-resume" data-tip="Volver a la partida" class="mbtn small">REANUDAR</button>
+    <button id="btn-opts" data-tip="Ajustar los volúmenes" class="mbtn small">OPCIONES</button>
+    <button id="btn-quit" data-tip="Salir de la misión (pide confirmación)" class="mbtn small" data-snd="cancel">SALIR</button>
+  </div>
+  <!-- 2) Opciones: volúmenes (los mismos que el menú principal) -->
+  <div id="pm-opts" class="pm">
+    <h2>OPCIONES</h2>
+    <div class="opt-list">
+      <div class="opt-row"><label for="g-master">VOLUMEN MAESTRO</label><input id="g-master" data-tip="Volumen general de todo el juego" class="opt-range" type="range" min="0" max="100" step="1" data-gvol="master"><b>100</b></div>
+      <div class="opt-row"><label for="g-music">VOLUMEN DE MÚSICA</label><input id="g-music" data-tip="Volumen de la música" class="opt-range" type="range" min="0" max="100" step="1" data-gvol="music"><b>60</b></div>
+      <div class="opt-row"><label for="g-sfx">VOLUMEN DE EFECTOS</label><input id="g-sfx" data-tip="Volumen de botones, tanques, disparos y voces" class="opt-range" type="range" min="0" max="100" step="1" data-gvol="sfx"><b>100</b><small>botones, tanques, disparos y voces</small></div>
+    </div>
+    <button id="btn-opts-back" data-tip="Volver al menú de pausa" class="mbtn small" data-snd="cancel">VOLVER</button>
+  </div>
+  <!-- 3) Confirmación al salir -->
+  <div id="pm-confirm" class="pm">
+    <h2>¿SALIR?</h2>
+    <p class="warnp">Si sales ahora <b>se perderá todo el progreso</b> de la misión.<br>¿Seguro que deseas continuar?</p>
+    <div class="btns"><button id="btn-quit-yes" data-tip="Salir y perder el progreso" class="mbtn small">SÍ, SALIR</button><button id="btn-quit-no" data-tip="Cancelar y volver a la pausa" class="mbtn small" data-snd="cancel">NO, VOLVER</button></div>
+  </div>
+</div></div>
+
+<!-- Victoria / derrota -->
+<div id="end"><div class="card">
+  <h2 id="end-title">VICTORIA</h2>
+  <p id="end-text"></p>
+  <div id="end-stats"></div>
+  <div class="btns"><button id="btn-continue" data-tip="Continuar a lo siguiente" class="mbtn small">CONTINUAR</button><button id="btn-retry" data-tip="Reiniciar la misión desde cero" class="mbtn small">REINTENTAR</button><button id="btn-menu2" data-tip="Volver al menú principal" class="mbtn small" data-snd="cancel">VOLVER AL MENÚ</button></div>
+</div></div>
+
+<!-- Pantalla de carga / briefing -->
+<div id="loading"><div class="card">
+  <div class="pvl-mini"><svg class="pvl-spiral" viewBox="-100 -100 200 200"></svg><img class="pvl-logo" src="../assets/imagenes/logo/logo.png" alt="" onerror="this.style.visibility='hidden'"></div>
+  <small>¡PANZER VOR!</small>
+  <h1>PRAVDA — MISIÓN 1</h1>
+  <p class="obj"><span>OBJETIVO</span><b id="load-obj"></b></p>
+  <p class="tip" id="load-brief"></p>
+  <div class="pickrow"><span>COMANDANTE</span><div id="pick"></div></div>
+  <p id="load-msg">Cargando…</p>
+  <button id="btn-start" data-tip="Empezar la misión" class="mbtn small" disabled>COMENZAR</button>
+</div></div>
+
+<script src="../js/pravda-mision1.js"></script>
+</body>
+</html>

@@ -216,6 +216,8 @@ missionMaps.usa.missions[0].url = "html/saunders-mision1.html";
 missionMaps.uk.missions[0].url = "html/stgloriana-mision1.html";   // St. Gloriana · Misión 1 (2 partes)
 missionMaps.ussr.missions[0].url = "html/pravda-mision1.html";        // Pravda · Misión 1 (defensa por oleadas)
 missionMaps.germany.missions[0].url = "html/kuromorimine-mision1.html";  // Kuromorimine · Misión 1 (eliminar al tanque bandera)
+missionMaps.france.missions[0].url = "html/bcfreedom-mision1.html";  // BC Freedom · Misión 1 (defender 8 minutos)
+missionMaps.italy.missions[0].url = "html/anzio-mision1.html";  // Anzio · Misión 1 (capturar 3 puntos)
 
 // Contenedor central opcional (por orden)
 const gameData = { nations, characters, tanks: Object.fromEntries(Object.entries(nations).map(([k, v]) => [k, v.tanks])),

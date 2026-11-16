@@ -897,13 +897,61 @@ function galItems() {
     ? n.characters.map(id => characters[id])
     : n.tanks;
 }
+/* ---- MEDIOS DE LA GALERÍA (imágenes y videos) ----
+   Personajes: carpeta  assets/imagenes/ch_galeria/<escuela>/<personaje>/   · Tanques: assets/imagenes/tk_galeria/
+   Los .mp4 se reproducen solos, en bucle y sin sonido (como un GIF). Si cambias un nombre de archivo, cámbialo aquí. */
+const GAL_CH = IMG + "ch_galeria/";
+const GAL_TK = IMG + "tk_galeria/";
+const GALLERY_MEDIA_CHARS = {
+  anchovy:   ["anzio",        ["Anchovy_Congratulates_2.webp", "Anzio_joins.webp", "Anzio-duce.webp", "Duce_speech.webp", "1.mp4", "2.mp4", "3.mp4"]],
+  carpaccio: ["anzio",        ["Carpaccio_school.webp", "1.mp4", "2.mp4", "3.mp4"]],
+  marie:     ["freedom",      ["MarieRetreat.webp", "Trio.webp", "1.mp4", "2.mp4", "3.mp4"]],
+  rena:      ["freedom",      ["Andou_stare.webp", "andou2.webp", "1.mp4", "2.mp4", "3.mp4"]],
+  ruka:      ["freedom",      ["20240623_231900.webp", "20240623_234047.webp", "20240623_234550.webp", "1.mp4", "2.mp4", "3.mp4"]],
+  darjeeling:["gloriana",     ["dar.webp", "Darjeeling.webp", "Morris_Mk.I.webp", "1.mp4", "2.mp4", "3.mp4"]],
+  rosehip:   ["gloriana",     ["Rosehip_1.webp", "Rosehip_removing_speedlimiter.webp", "1.mp4", "2.mp4"]],
+  rukurini:  ["gloriana",     ["Rukuriri_Taunt.webp"]],
+  erika:     ["kuromorimine", ["Erika_in_the_cupola.webp", "Erika_rebuking.webp", "1.mp4", "2.mp4", "3.mp4"]],
+  koume:     ["kuromorimine", ["Apology.webp", "1.mp4", "2.mp4"]],
+  maho:      ["kuromorimine", ["Maho_cupola.webp", "Proud_of_her_little_sister.webp", "Tiger_I_advancing.webp", "1.mp4", "2.mp4", "3.mp4"]],
+  katyusha:  ["pravda",       ["Giving_orders.webp", "Grinning_with_confidence.webp", "Refusing_to_accept.webp", "1.mp4", "2.mp4", "3.mp4"]],
+  klara:     ["pravda",       ["Klara_01.webp", "Saying_goodbye.webp", "1.mp4", "2.mp4", "3.mp4"]],
+  nonna:     ["pravda",       ["Ep_8_Katyusha_riding_Nonna.webp", "Nonna_and_Katyusha_in_Ooarai_uniform.webp", "1.mp4", "2.mp4", "3.mp4"]],
+  alisa:     ["saunders",     ["M4A1FlagTank.webp", "1.jfif", "2.jfif", "3.jfif", "4.jfif", "5.jfif", "1.mp4", "2.mp4", "3.mp4"]],
+  kay:       ["saunders",     ["Kay_in_the_rain.webp", "Saunders_doing_what_Anzio_does_best.webp", "1.jfif", "2.jfif", "1.mp4", "2.mp4", "3.mp4"]],
+  naomi:     ["saunders",     ["Naomi_under_pressure.webp", "1.jfif", "2.jfif", "4.jfif", "1.mp4", "2.mp4", "3.mp4"]]
+};
+const GALLERY_MEDIA_TANKS = {
+  panther: ["panther1.webp", "panther2.webp"], tiger1: ["tiger1.webp", "tiger2.webp"],
+  churchill: ["churchill-1.webp", "churchill-2.webp"], kv2: ["kv2-1.webp", "kv2-2.webp"],
+  t34: ["t34-1.webp", "t34-2.webp"], p26: ["p40-1.webp", "p40-2.webp"],
+  cv33: ["cv33-1.webp", "cv33-2.webp"], ft17: ["ft17-1.webp", "ft17-2.webp"],
+  arl44: ["arl-1.webp", "arl-2.webp"], firefly: ["firefly1.webp", "firefly2.webp", "firefly3.webp"],
+  m4sherman: ["sherman-2.webp"]
+};
+const isVideo = src => /\.(mp4|webm|ogv)(\?|$)/i.test(src || "");
+// Crea el elemento de un medio: <video> en bucle (tipo GIF) o <img>
+function mediaEl(src, label, big) {
+  if (!isVideo(src)) { const im = document.createElement("img"); im.alt = ""; setImg(im, src, label); return im; }
+  const v = document.createElement("video");
+  v.src = src; v.loop = true; v.muted = true; v.defaultMuted = true; v.autoplay = true; v.playsInline = true; v.preload = big ? "auto" : "metadata";
+  v.setAttribute("loop", ""); v.setAttribute("muted", ""); v.setAttribute("playsinline", "");
+  if (!big) v.disablePictureInPicture = true;
+  v.addEventListener("loadeddata", () => { const pr = v.play(); if (pr && pr.catch) pr.catch(() => {}); });
+  return v;
+}
+function galleryMedia(item, kind) {
+  if (kind === "chars") { const m = GALLERY_MEDIA_CHARS[item.id]; if (m) return m[1].map(f => GAL_CH + m[0] + "/" + item.id + "/" + f); return null; }
+  const t = GALLERY_MEDIA_TANKS[item.id]; return t ? t.map(f => GAL_TK + f) : null;
+}
+
 function galData(item) {                 // junta datos reales + editables + ejemplos
   const n = nations[gal.nation];
   if (gal.tab === "chars") {
     const e = GALLERY_CHARS[item.id] || {};
     return {
       kind: "chars", id: item.id, name: item.name, tag: n.faction,
-      images: e.images || [item.fullImage, item.pfp],
+      images: e.images || [item.fullImage, item.pfp].concat(galleryMedia(item, "chars") || []),
       quote: e.quote || "",                                   // sin cita por defecto (si defines `quote` en GALLERY_CHARS, se muestra)
       fields: Object.entries(Object.assign({
         "ESCUELA": n.faction, "FECHA DE NACIMIENTO": item.birth, "ALTURA": item.height,
@@ -917,7 +965,7 @@ function galData(item) {                 // junta datos reales + editables + eje
   const e = GALLERY_TANKS[item.id] || {};
   return {
     kind: "tanks", id: item.id, name: item.name, tag: n.faction + " · " + n.name,
-    images: e.images || [item.image, IMG + "tanques/galeria/" + item.id + "-2.webp", IMG + "tanques/galeria/" + item.id + "-3.webp"],
+    images: e.images || (["m4sherman", "firefly", "cv33", "p26"].includes(item.id) && galleryMedia(item, "tanks") || [item.image].concat(galleryMedia(item, "tanks") || [])),   // Saunders y Anzio: su imagen del menú ya está en tk_galeria, no se repite
     quote: e.quote || "",                                   // sin cita por defecto (si defines `quote` en GALLERY_TANKS, se muestra)
     fields: Object.entries(Object.assign({
       "TIPO": item.type, "VELOCIDAD": item.speed, "ARMAMENTO": item.weapon,
@@ -995,8 +1043,7 @@ function galShow(id, dir, instant) {
     $("g-frame").className = "g-frame" + (d.kind === "tanks" ? " is-tank" : ""); $("g-frame").innerHTML = "";
     const th = $("g-thumbs"); th.innerHTML = "";
     d.images.forEach((src, i) => {
-      const b = el("button", "g-th" + (d.kind === "tanks" ? " is-tank" : "") + (i === 0 ? " sel" : "")); b.innerHTML = "<img alt=''>";
-      setImg(b.querySelector("img"), src, "imagen " + (i + 1)); b.addEventListener("click", () => galSetImage(i, d));
+      const b = el("button", "g-th" + (d.kind === "tanks" ? " is-tank" : "") + (i === 0 ? " sel" : "")); b.appendChild(mediaEl(src, "imagen " + (i + 1), false)); if (isVideo(src)) b.classList.add("is-video"); b.addEventListener("click", () => galSetImage(i, d));
       th.appendChild(b);
     });
     galSetImage(0, d, true);
@@ -1018,8 +1065,7 @@ function galSetImage(i, d, first) {
   document.querySelectorAll(".g-th").forEach((b, k) => b.classList.toggle("sel", k === i));
   const fr = $("g-frame");
   fr.querySelectorAll(".g-layer:not(.out)").forEach(o => { o.classList.add("out"); setTimeout(() => o.remove(), 650); });
-  const L = el("div", "g-layer" + (first ? "" : " in")); L.innerHTML = "<img alt=''>";
-  setImg(L.querySelector("img"), d.images[i], "imagen " + (i + 1));
+  const L = el("div", "g-layer" + (first ? "" : " in")); L.appendChild(mediaEl(d.images[i], "imagen " + (i + 1), true));
   fr.appendChild(L);
 }
 // Abre la galería.
@@ -1041,14 +1087,17 @@ function initGallery() {
   });
   fr.addEventListener("pointerleave", () => fr.querySelectorAll(".g-layer").forEach(l => { l.style.transform = ""; }));
   // Visor de imagen completa: clic en la imagen → se abre a pantalla casi completa; clic o ESC → se cierra
-  const lb = el("div"); lb.id = "lightbox"; lb.innerHTML = '<img alt=""><div class="lb-hint">CLIC O ESC PARA CERRAR</div>'; document.body.appendChild(lb);
-  const closeLb = () => lb.classList.remove("on");
+  const lb = el("div"); lb.id = "lightbox"; lb.innerHTML = '<div class="lb-media"></div><div class="lb-hint">CLIC O ESC PARA CERRAR</div>'; document.body.appendChild(lb);
+  const closeLb = () => { lb.classList.remove("on"); lb.querySelector(".lb-media").innerHTML = ""; };
   lb.addEventListener("click", closeLb);
   document.addEventListener("keydown", e => { if (e.key === "Escape" && lb.classList.contains("on")) { closeLb(); e.stopImmediatePropagation(); } }, true);   // ESC cierra el visor antes que cualquier otra cosa
   fr.addEventListener("click", () => {
-    const im = fr.querySelector(".g-layer:not(.out) img");
-    if (!im || !im.naturalWidth) return;                               // si la imagen no cargó, no hay nada que ampliar
-    lb.querySelector("img").src = im.src; lb.classList.add("on");
+    const im = fr.querySelector(".g-layer:not(.out) img, .g-layer:not(.out) video");
+    if (!im) return;
+    if (im.tagName === "IMG" && !im.naturalWidth) return;              // si la imagen no cargó, no hay nada que ampliar
+    if (im.tagName === "VIDEO" && !im.videoWidth) return;
+    const big = im.tagName === "VIDEO" ? mediaEl(im.currentSrc || im.src, "", true) : Object.assign(document.createElement("img"), { src: im.src, alt: "" });
+    lb.querySelector(".lb-media").replaceChildren(big); lb.classList.add("on");
   });
 }
 

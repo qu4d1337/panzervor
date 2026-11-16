@@ -362,7 +362,7 @@ body[data-scene="missions"] #disc,body[data-scene="missions"] #disc-notes,body.l
 .g-frame{position:relative;flex:1;min-height:0;overflow:hidden;border:1px solid var(--line);background:#141b0f;perspective:800px}
 .g-layer{position:absolute;inset:0;transition:transform .25s ease-out;will-change:transform}
 /* La imagen grande se ve SIEMPRE completa: contain = se ajusta sin recortar, center = centrada (antes: cover/top la recortaba y la pegaba arriba) */
-.g-layer img{width:100%;height:100%;object-fit:contain;object-position:center;padding:10px;display:block}
+.g-layer img,.g-layer video{width:100%;height:100%;object-fit:contain;object-position:center;padding:10px;display:block}
 .g-layer.in{animation:gLayerIn .8s var(--ease) backwards}
 .g-layer.out{animation:gLayerOut .6s ease-in both}
 @keyframes gLayerIn{from{opacity:0;transform:scale(1.12) translateX(24px)}to{opacity:1;transform:none}}
@@ -406,6 +406,16 @@ body[data-scene="missions"] #disc,body[data-scene="missions"] #disc-notes,body.l
 /* ---------- Visor de imagen completa (lightbox de la galería) ---------- */
 #lightbox{position:fixed;inset:0;z-index:95;display:flex;align-items:center;justify-content:center;background:rgba(6,9,4,.93);opacity:0;visibility:hidden;transition:opacity .3s,visibility .3s;cursor:zoom-out}
 #lightbox.on{opacity:1;visibility:visible}
-#lightbox img{max-width:94vw;max-height:88vh;object-fit:contain;border:1px solid var(--line);box-shadow:0 20px 60px rgba(0,0,0,.8);transform:scale(.94);transition:transform .35s var(--ease)}
-#lightbox.on img{transform:none}
+#lightbox img,#lightbox video{max-width:94vw;max-height:88vh;object-fit:contain;border:1px solid var(--line);box-shadow:0 20px 60px rgba(0,0,0,.8);transform:scale(.94);transition:transform .35s var(--ease)}
+#lightbox.on img,#lightbox.on video{transform:none}
 #lightbox .lb-hint{position:absolute;left:0;right:0;bottom:2.5vh;text-align:center;font-size:13px;letter-spacing:.22em;color:var(--khaki)}
+
+/* Miniaturas de video: mismo tamaño que las de imagen, con una marca de "play" */
+.g-th video{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none}
+.g-th.is-video{position:relative}
+.g-th.is-video::after{content:'▶';position:absolute;right:4px;bottom:3px;font-size:11px;color:#fff;text-shadow:0 0 4px #000}
+/* Aviso de derechos de autor (esquina inferior izquierda, menú y galería) */
+.copyright-note{position:fixed;left:14px;bottom:8px;z-index:40;max-width:min(560px,60vw);font-size:10.5px;line-height:1.35;letter-spacing:.04em;color:rgba(214,205,170,.62);pointer-events:none;text-shadow:0 1px 3px #000;opacity:0;transition:opacity .4s}
+body[data-scene="menu"] .copyright-note,body[data-scene="gallery"] .copyright-note{opacity:1}
+body.locked .copyright-note{opacity:0}
+.copyright-note b{font-weight:700;color:rgba(230,222,190,.8)}

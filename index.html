@@ -8,7 +8,6 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Black+Ops+One&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
-<link rel="icon" type="image/png" href="assets/imagenes/favicon.png">
 </head>
 <body data-scene="menu" class="locked">
 <div id="app">
@@ -20,7 +19,6 @@
 
   <!-- ESCENA: MENÚ -->
   <section id="scene-menu" class="scene active">
-    <div class="menu-coords"><span>N 52°31'</span><span>E 013°24'</span><span>GRID 17-A</span></div>
     <div class="title-block">
       <h1 class="game-title">¡Panzer <img class="title-logo" src="assets/imagenes/logo/logo.png" alt="" onerror="this.style.display='none'"> Vor!</h1>
       <p class="game-sub">TACTICAL TANK OPERATIONS</p>
@@ -104,6 +102,8 @@
     <div id="gal-body">
       <aside id="gal-list-wrap">
         <div class="panel-label" id="gal-list-label">PERSONAJES</div>
+        <!-- Lista de la galería como TABLA real: <thead> = encabezados, <tbody> = una fila por personaje/tanque.
+             galRenderList() (main.js) rellena ambas partes según la pestaña activa. -->
         <div id="gal-list">
           <table id="gal-table">
             <thead></thead>
@@ -189,6 +189,7 @@
     </div>
   </div>
 </div>
+<div class="copyright-note"><b>Girls und Panzer</b> © GIRLS und PANZER Projekt · © GIRLS und PANZER Film Projekt · © GIRLS und PANZER Finale Projekt · © 戦車道大作戦 実行委員会.<br>Obra original de Actas (dir. Tsutomu Mizushima). Todos los derechos pertenecen a sus titulares. Proyecto de fans sin fines de lucro, no afiliado ni oficial.</div>
 <script src="js/main.js"></script>
 </body>
 </html>

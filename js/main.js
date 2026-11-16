@@ -931,12 +931,13 @@ const GALLERY_MEDIA_TANKS = {
 };
 const isVideo = src => /\.(mp4|webm|ogv)(\?|$)/i.test(src || "");
 // Crea el elemento de un medio: <video> en bucle (tipo GIF) o <img>
-function mediaEl(src, label, big) {
-  if (!isVideo(src)) { const im = document.createElement("img"); im.alt = ""; setImg(im, src, label); return im; }
+function mediaEl(src, label, big, onMissing) {
+  if (!isVideo(src)) { const im = document.createElement("img"); im.alt = ""; setImg(im, src, label); if (onMissing) im.addEventListener("error", onMissing); return im; }
   const v = document.createElement("video");
   v.src = src; v.loop = true; v.muted = true; v.defaultMuted = true; v.autoplay = true; v.playsInline = true; v.preload = big ? "auto" : "metadata";
   v.setAttribute("loop", ""); v.setAttribute("muted", ""); v.setAttribute("playsinline", "");
   if (!big) v.disablePictureInPicture = true;
+  if (onMissing) v.addEventListener("error", onMissing);
   v.addEventListener("loadeddata", () => { const pr = v.play(); if (pr && pr.catch) pr.catch(() => {}); });
   return v;
 }
@@ -1043,7 +1044,12 @@ function galShow(id, dir, instant) {
     $("g-frame").className = "g-frame" + (d.kind === "tanks" ? " is-tank" : ""); $("g-frame").innerHTML = "";
     const th = $("g-thumbs"); th.innerHTML = "";
     d.images.forEach((src, i) => {
-      const b = el("button", "g-th" + (d.kind === "tanks" ? " is-tank" : "") + (i === 0 ? " sel" : "")); b.appendChild(mediaEl(src, "imagen " + (i + 1), false)); if (isVideo(src)) b.classList.add("is-video"); b.addEventListener("click", () => galSetImage(i, d));
+      const b = el("button", "g-th" + (d.kind === "tanks" ? " is-tank" : "") + (i === 0 ? " sel" : "")); const miss = () => {          // archivo que no existe: se quita la miniatura (nada de "TODO")
+        const k = d.images.indexOf(src); if (k < 0) return;
+        const wasSel = b.classList.contains("sel"); d.images.splice(k, 1); b.remove();
+        if (wasSel && d.images.length) galSetImage(0, d, true);
+      };
+      b.appendChild(mediaEl(src, "imagen " + (i + 1), false, miss)); if (isVideo(src)) b.classList.add("is-video"); b.addEventListener("click", () => galSetImage(d.images.indexOf(src), d));
       th.appendChild(b);
     });
     galSetImage(0, d, true);

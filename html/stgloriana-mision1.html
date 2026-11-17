@@ -32,8 +32,7 @@
     </div>
   </div>
   <div class="top-btns">
-    <button id="btn-pause" class="sq" data-tip="Pausar el juego y abrir el menú (P / ESC)">❚❚</button>
-    <button id="btn-menu" class="sq" data-snd="cancel" data-tip="Salir al menú principal (pide confirmación)">MENÚ</button>
+    <button id="btn-menu" class="sq" data-snd="cancel" data-tip="Pausar y abrir el menú (P / ESC)">MENÚ</button>
   </div>
 </header>
 
@@ -70,6 +69,10 @@
     </div>
     <button id="btn-form" class="ibtn" data-tip="Cambiar formación de movimiento (F)" aria-label="Formación"></button>
   </div>
+  <button id="btn-reinf" style="display:none" data-tip="Llamar refuerzos: 5 Matilda por el este (R). Disponible porque llegaste a la parte 2 con 3 tanques o más. Solo se puede usar una vez">
+    <span class="rb-title">REFUERZOS <kbd>R</kbd></span>
+    <span class="rb-sub" id="reinf-sub">5 MATILDA</span>
+  </button>
 </footer>
 <div id="ui-tip" role="tooltip"></div>
 <div id="help">Arrastra en el mapa = recuadro de selección (Q = todos) · arrastra desde un tanque = mover en formación · clic derecho = mover / atacar al enemigo señalado · F = formación · rueda = zoom · WASD / clic central = cámara · ESC = menú de pausa</div>
@@ -94,7 +97,7 @@
     <h2>PAUSA</h2>
     <button id="btn-resume" data-tip="Volver a la partida" class="mbtn small">REANUDAR</button>
     <button id="btn-opts" data-tip="Ajustar los volúmenes" class="mbtn small">OPCIONES</button>
-    <button id="btn-quit" data-tip="Salir de la misión (pide confirmación)" class="mbtn small" data-snd="cancel">SALIR</button>
+    <button id="btn-quit" data-tip="Volver al menú principal (pide confirmación)" class="mbtn small" data-snd="cancel">VOLVER AL MENÚ</button>
   </div>
   <!-- 2) Opciones: volúmenes (los mismos que el menú principal) -->
   <div id="pm-opts" class="pm">
@@ -108,9 +111,9 @@
   </div>
   <!-- 3) Confirmación al salir -->
   <div id="pm-confirm" class="pm">
-    <h2>¿SALIR?</h2>
-    <p class="warnp">Si sales ahora <b>se perderá todo el progreso</b> de la misión.<br>¿Seguro que deseas continuar?</p>
-    <div class="btns"><button id="btn-quit-yes" data-tip="Salir y perder el progreso" class="mbtn small">SÍ, SALIR</button><button id="btn-quit-no" data-tip="Cancelar y volver a la pausa" class="mbtn small" data-snd="cancel">NO, VOLVER</button></div>
+    <h2>¿VOLVER AL MENÚ?</h2>
+    <p class="warnp">Tu progreso <b>se perderá</b>.<br>¿Estás seguro de que deseas volver al menú?</p>
+    <div class="btns"><button id="btn-quit-yes" data-tip="Volver al menú y perder el progreso" class="mbtn small">SÍ</button><button id="btn-quit-no" data-tip="Cancelar y volver a la pausa" class="mbtn small" data-snd="cancel">NO</button></div>
   </div>
 </div></div>
 

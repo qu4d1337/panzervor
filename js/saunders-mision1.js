@@ -1,5 +1,39 @@
 'use strict';
 
+// ÍNDICE DEL ARCHIVO (cada sección está marcada con una barra de "=====" más abajo):
+//   1. PANTALLA DE CARGA CON LOGO Y ESPIRAL (reutilizable en todas las misiones y pantallas)
+//   2. CONFIGURACIÓN
+//   3. DATOS: AUDIO
+//   4. DATOS: TANQUES
+//   5. DATOS: PASIVAS DE COMANDANTE
+//   6. DATOS: COMANDANTES (imagen = la del menú, voces, pasiva)
+//   7. DATOS: LA MISIÓN
+//   8. GEOMETRÍA (utilidades)
+//   9. CARGA DEL MAPA
+//  10. COLISIONES
+//  11. RUTAS (malla de navegación + A* + suavizado)
+//  12. LÍNEA DE VISIÓN (LOS) — los polígonos opacos tapan la vista y los disparos
+//  13. PINTADO DEL MAPA — plano militar con tintes suaves
+//  14. CARGA DE RECURSOS
+//  15. ESTADO GLOBAL
+//  16. UNIDADES
+//  17. ESTADÍSTICAS (vida · confianza · estrés · estabilidad · estado)
+//  18. COMANDANTES / PASIVAS
+//  19. RECONOCIMIENTO / NIEBLA DE GUERRA
+//  20. MOVIMIENTO
+//  21. COMBATE
+//  22. EFECTOS VISUALES (destello de boca, impactos, humo, explosiones)
+//  23. IA ENEMIGA
+//  24. CÁMARA TÁCTICA
+//  25. RENDER
+//  26. INTERFAZ (panel de información, botones, avisos)
+//  27. SELECCIÓN, BOTONES Y ATAJOS
+//  28. ENTRADA (ratón, rueda, teclado)
+//  29. VICTORIA / DERROTA
+//  30. GAME LOOP
+//  31. MAPA EMBEBIDO — JSON exportado de tu editor (panzer_vor_saunders.json)
+//
+
 // =====================================================================
 // PANTALLA DE CARGA CON LOGO Y ESPIRAL (reutilizable en todas las misiones y pantallas)
 //   pvLoader.show()  → aparece el logo con la espiral · pvLoader.hide() → se va
@@ -262,6 +296,7 @@ function pointInFlat(x, y, f) {
   }
   return inside;
 }
+// Distancia² de un punto a un segmento (base de todas las colisiones contra bordes de polígonos).
 function segDist2(px, py, x1, y1, x2, y2) {
   const dx = x2 - x1, dy = y2 - y1, l2 = dx * dx + dy * dy;
   let t = l2 ? ((px - x1) * dx + (py - y1) * dy) / l2 : 0;
@@ -269,12 +304,14 @@ function segDist2(px, py, x1, y1, x2, y2) {
   const cx = x1 + t * dx - px, cy = y1 + t * dy - py;
   return cx * cx + cy * cy;
 }
+// ¿El punto (x,y) está a menos de r píxeles de alguna arista del polígono f? (colisión de un tanque con su radio).
 function nearEdge(x, y, f, r) {
   const r2 = r * r;
   for (let i = 0, j = f.length - 2; i < f.length; j = i, i += 2)
     if (segDist2(x, y, f[j], f[j + 1], f[i], f[i + 1]) < r2) return true;
   return false;
 }
+// Distancia mínima del punto a las aristas del polígono (se usa para saber qué tan adentro está).
 function minEdgeDist(x, y, f) {
   let best = Infinity;
   for (let i = 0, j = f.length - 2; i < f.length; j = i, i += 2) {
@@ -283,6 +320,7 @@ function minEdgeDist(x, y, f) {
   }
   return Math.sqrt(best);
 }
+// Caja envolvente [x0,y0,x1,y1] de un polígono; sirve para descartar rápido en colisiones.
 function flatBBox(f) {
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   for (let i = 0; i < f.length; i += 2) {
@@ -291,6 +329,7 @@ function flatBBox(f) {
   }
   return [x0, y0, x1, y1];
 }
+// Área con signo del polígono (su signo indica el sentido de giro de los puntos).
 function signedArea(pts) {
   let a = 0;
   for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) a += (pts[j][0] * pts[i][1] - pts[i][0] * pts[j][1]);
@@ -312,12 +351,14 @@ const MAP = {
 
 const ptXY = p => (Array.isArray(p) ? [+p[0], +p[1]] : [+p.x, +p.y]);
 const rectPts = r => [[r.x, r.y], [r.x + r.ancho, r.y], [r.x + r.ancho, r.y + r.alto], [r.x, r.y + r.alto]];
+// Convierte una colina elíptica del editor en un polígono de puntos.
 function ellipsePts(r) {
   const cx = r.x + r.ancho / 2, cy = r.y + r.alto / 2, out = [];
   for (let i = 0; i < 28; i++) { const a = i / 28 * TAU; out.push([cx + Math.cos(a) * r.ancho / 2, cy + Math.sin(a) * r.alto / 2]); }
   return out;
 }
 
+// Registra un polígono del mapa (bosque, elevación, agua, edificio…) con su caja, su geometría plana y si bloquea el paso o la vista.
 function addPoly(uso, tono, pts, id, extra) {
   if (pts.length < 3) return null;
   if (signedArea(pts) < 0) pts = pts.slice().reverse();          // orientación uniforme (para unir polígonos al pintar)
@@ -349,6 +390,7 @@ function generateBuildings(poly) {
   return out;
 }
 
+// CRÍTICA · Convierte el JSON del editor en el mapa jugable: polígonos, terrenos, bosques, zonas urbanas, edificios y carreteras. Después construye la rejilla de navegación y pinta el mapa.
 function prepareMap(data) {
   MAP.w = data.ancho; MAP.h = data.alto; MAP.name = data.nombre || '';
   MAP.polys = []; MAP.buildings = []; MAP.roads = [];
@@ -395,6 +437,7 @@ function blockedAt(x, y, r, high) {
   }
   return false;
 }
+// ¿El tramo recto entre dos puntos está libre de obstáculos para un tanque de radio r? (comprueba cada ~5 px).
 function segmentClear(x1, y1, x2, y2, r) {
   const d = Math.hypot(x2 - x1, y2 - y1), n = Math.max(1, Math.ceil(d / 5));
   for (let i = 1; i <= n; i++) { const t = i / n; if (blockedAt(lerp(x1, x2, t), lerp(y1, y2, t), r)) return false; }
@@ -407,6 +450,7 @@ function segmentClear(x1, y1, x2, y2, r) {
 // =====================================================================
 const NAV = { cs: 8, cols: 0, rows: 0, blocked: null, comp: null, mainComp: 0 };
 
+// CRÍTICA · Construye la rejilla de navegación (celdas de 8 px) marcando como bloqueadas las celdas con obstáculos e identifica las zonas conectadas entre sí.
 function buildNav() {
   const cs = NAV.cs = CONFIG.navCell, cols = NAV.cols = Math.ceil(MAP.w / cs), rows = NAV.rows = Math.ceil(MAP.h / cs);
   const blocked = NAV.blocked = new Uint8Array(cols * rows), r = CONFIG.unitRadius + 2;
@@ -542,6 +586,7 @@ function highPolysAt(x, y) {
   for (const p of MAP.polys) if (p.elevated) { const b = p.bbox; if (x >= b[0] && x <= b[2] && y >= b[1] && y <= b[3] && pointInFlat(x, y, p.flat)) out.push(p); }
   return out;
 }
+// Lista de polígonos que un rayo debe ignorar: las elevaciones del tirador/objetivo y el bosque donde se esconde un tanque.
 function ignAt(x1, y1, x2, y2) {
   const a = highPolysAt(x1, y1), b = highPolysAt(x2, y2);
   return a.length || b.length ? a.concat(b) : null;
@@ -562,6 +607,7 @@ function losBlocked(x1, y1, x2, y2) {
 let mapCanvas = null;
 const TMP = { a: null, b: null };
 
+// Traza en el canvas el contorno cerrado de varios polígonos.
 function closedPaths(g, polys) {
   g.beginPath();
   for (const p of polys) { const f = p.flat; g.moveTo(f[0], f[1]); for (let i = 2; i < f.length; i += 2) g.lineTo(f[i], f[i + 1]); g.closePath(); }
@@ -570,6 +616,7 @@ function edgeOnBorder(x1, y1, x2, y2) {            // aristas pegadas al borde d
   const t = 4;
   return (x1 <= t && x2 <= t) || (x1 >= MAP.w - t && x2 >= MAP.w - t) || (y1 <= t && y2 <= t) || (y1 >= MAP.h - t && y2 >= MAP.h - t);
 }
+// Traza solo las aristas interiores de los polígonos (ignora las pegadas al borde del mapa).
 function edgePaths(g, polys) {
   g.beginPath();
   for (const p of polys) {
@@ -580,6 +627,7 @@ function edgePaths(g, polys) {
     }
   }
 }
+// Limpia y reinicia un canvas temporal antes de pintar una capa.
 function resetTmp(cg, S) {
   cg.setTransform(1, 0, 0, 1, 0, 0); cg.globalCompositeOperation = 'source-over'; cg.filter = 'none';
   cg.clearRect(0, 0, cg.canvas.width, cg.canvas.height); cg.setTransform(S, 0, 0, S, 0, 0); cg.setLineDash([]);
@@ -609,6 +657,7 @@ function paintUnion(g, polys, o) {
   g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.drawImage(TMP.b, 0, 0); g.restore();
 }
 
+// Pinta el fondo del mapa con textura de papel.
 function paintPaper(g) {
   g.fillStyle = COLORS.paper; g.fillRect(0, 0, MAP.w, MAP.h);
   const t = document.createElement('canvas'); t.width = t.height = 160;
@@ -643,6 +692,7 @@ function paintHill(g, p) {
   }
 }
 
+// Dibuja los árboles de los bosques; la posición es determinista para que no cambie entre partidas.
 function paintForestTrees(g, polys) {              // símbolos de árbol deterministas
   const seen = new Set(), step = 15;
   g.save(); g.strokeStyle = '#2f5236'; g.lineWidth = 0.9; g.globalAlpha = 0.9; g.lineJoin = 'miter'; g.beginPath();
@@ -661,6 +711,7 @@ function paintForestTrees(g, polys) {              // símbolos de árbol determ
   g.stroke(); g.restore();
 }
 
+// Dibuja todos los edificios con sombra y tejado.
 function paintBuildings(g) {
   const fills = ['#cfcec7', '#aeada6', '#8f8e88'];
   for (const b of MAP.buildings) {
@@ -671,6 +722,7 @@ function paintBuildings(g) {
   }
 }
 
+// Dibuja las carreteras en 3 pasadas (bordes → rellenos → línea central) para que los cruces se vean unidos.
 function paintRoads(g) {
   for (const r of MAP.roads) {
     if (r.pts.length < 2) continue;
@@ -686,6 +738,7 @@ const GRID_CELL = 120;
 const gridLetter = i => { let s = ''; i++; while (i > 0) { const r = (i - 1) % 26; s = String.fromCharCode(65 + r) + s; i = Math.floor((i - 1) / 26); } return s; };
 const gridName = (x, y) => gridLetter(clamp(Math.floor(x / GRID_CELL), 0, 99)) + '-' + (clamp(Math.floor(y / GRID_CELL), 0, 99) + 1);
 
+// Dibuja la cuadrícula del mapa con sus letras y números (A-1, B-2…).
 function paintGrid(g) {
   g.save(); g.strokeStyle = 'rgba(30,30,30,.13)'; g.lineWidth = 1; g.beginPath();
   for (let x = GRID_CELL; x < MAP.w; x += GRID_CELL) { g.moveTo(x, 0); g.lineTo(x, MAP.h); }
@@ -699,6 +752,7 @@ function paintGrid(g) {
   g.restore();
 }
 
+// CRÍTICA · Pinta todo el mapa en un canvas fuera de pantalla, capa por capa; luego solo se copia en cada fotograma.
 function paintMap() {
   const S = CONFIG.mapScale, w = Math.round(MAP.w * S), h = Math.round(MAP.h * S);
   const c = document.createElement('canvas'); c.width = w; c.height = h;
@@ -739,6 +793,7 @@ function paintMap() {
 const IMGS = {};                 // 'tank:firefly' → Image | null,  'cmd:kay' → Image | null
 const MISSING = [];              // recursos que no se encontraron (se muestran en consola)
 
+// Intenta cargar una imagen probando varias rutas; devuelve null si ninguna existe.
 function loadImageList(urls) {
   return new Promise(resolve => {
     let i = 0;
@@ -757,6 +812,7 @@ const tankImageUrls = key => {
   for (const f of TANKS[key].images) for (const d of CONFIG.tankImageDirs) out.push(encodeURI(ROOT + d + f));
   return out;
 };
+// Carga todas las imágenes (tanques, retratos) antes de empezar; los que falten se dibujan como formas simples.
 async function loadAssets() {
   const tankKeys = [MISSION.player.crewTank, MISSION.enemy.flagTank, MISSION.enemy.crewTank, MISSION.player.commanderTank];
   for (const c of Object.values(COMMANDERS)) if (c.tank) tankKeys.push(c.tank);
@@ -866,6 +922,7 @@ function stabilityTarget(u) {
   if (u.near.foes >= 2 && u.near.allies === 0) t -= 8;
   return clamp(t, 0, 100);
 }
+// Estado de ánimo (TRANQUILO, ALERTA, NERVIOSO, PÁNICO…) según sus estadísticas.
 function moodOf(u) {
   const { stress: s, stability: b } = u.stats, foes = u.near ? u.near.foes : 0;
   if (b < 20 || s > 90) return 'PÁNICO';
@@ -881,6 +938,7 @@ const reloadMult = u => 1 + (1 - u.stats.stability / 100) * 0.3;
 const orderDelay = u => (1 - u.stats.stability / 100) * 0.9;
 const speedMult  = u => (u.mood === 'PÁNICO' ? 0.9 : 1);
 
+// CRÍTICA · Cada fotograma: recalcula confianza, estrés y estabilidad de cada unidad y aplica sus efectos (puntería, recarga, retraso de órdenes).
 function updateStats(dt) {
   const alive = G.units.filter(u => u.alive);
   for (const u of alive) u.mods = { stability: 0, leadership: false };
@@ -910,18 +968,23 @@ function updateStats(dt) {
 }
 // Eventos que modifican las estadísticas
 function onUnitDamaged(u, dmg) { const s = u.stats; s.stress = clamp(s.stress + 8 + dmg / 25, 0, 100); s.confidence = clamp(s.confidence - (6 + dmg / 40), 0, 100); u.lastUnderFireT = G.time; }
+// Evento: la unidad acierta un disparo → gana confianza.
 function onUnitScoredHit(u)    { u.stats.confidence = clamp(u.stats.confidence + 3, 0, 100); u.stats.stress = clamp(u.stats.stress - 1.5, 0, 100); }
+// Evento: la unidad destruye un enemigo → sube su confianza y la de su equipo.
 function onUnitKill(u) {
   u.stats.confidence = clamp(u.stats.confidence + 8, 0, 100); u.stats.stress = clamp(u.stats.stress - 4, 0, 100);
   for (const o of G.units) if (o.alive && o.team === u.team && o !== u) o.stats.confidence = clamp(o.stats.confidence + 2, 0, 100);
 }
+// Evento: cae un aliado → sube el estrés y baja la confianza de los cercanos.
 function onAllyLost(lost) {
   for (const o of G.units) if (o.alive && o.team === lost.team) {
     o.stats.stress = clamp(o.stats.stress + (dist(o.x, o.y, lost.x, lost.y) < 400 ? 18 : 12), 0, 100);
     o.stats.confidence = clamp(o.stats.confidence - 12, 0, 100);
   }
 }
+// Evento: un proyectil pasa cerca → sube un poco el estrés.
 function onNearMiss(u) { u.stats.stress = clamp(u.stats.stress + 4, 0, 100); u.lastUnderFireT = G.time; }
+// Evento: la unidad cumple una orden → gana algo de confianza.
 function onOrderDone(u) { u.stats.confidence = clamp(u.stats.confidence + 1.5, 0, 100); }
 
 
@@ -952,11 +1015,13 @@ function applyPassives(dt) {
 // =====================================================================
 const FOG = { canvas: null, ctx: null, explored: null, exCtx: null };
 
+// Crea los canvas de niebla de guerra: zona visible ahora y zona ya explorada.
 function initFog() {
   const s = CONFIG.fogScale, w = Math.ceil(MAP.w * s), h = Math.ceil(MAP.h * s);
   FOG.canvas = document.createElement('canvas'); FOG.canvas.width = w; FOG.canvas.height = h; FOG.ctx = FOG.canvas.getContext('2d');
   FOG.explored = document.createElement('canvas'); FOG.explored.width = w; FOG.explored.height = h; FOG.exCtx = FOG.explored.getContext('2d');
 }
+// CRÍTICA · Calcula el polígono de visión de una unidad lanzando rayos en todas direcciones (se detienen en obstáculos).
 function computeVisPoly(u) {
   const R = u.spec.vision, n = CONFIG.fogRays, pts = new Float32Array(n * 2), off = ((u.id * 0.37) % 1) * (TAU / n);
   for (let i = 0; i < n; i++) {
@@ -965,8 +1030,10 @@ function computeVisPoly(u) {
   }
   return pts;
 }
+// Traza un polígono a partir de un arreglo plano de coordenadas.
 function polyPathF32(g, pts) { g.beginPath(); g.moveTo(pts[0], pts[1]); for (let i = 2; i < pts.length; i += 2) g.lineTo(pts[i], pts[i + 1]); g.closePath(); }
 
+// CRÍTICA · Actualiza la niebla de guerra y decide qué enemigos ve el jugador; si ve a alguno, dispara la emboscada (parte 2).
 function updateRecon() {
   const ps = players();
   for (const p of ps) p.visPoly = computeVisPoly(p);
@@ -1014,8 +1081,10 @@ function issueMove(u, x, y, opts) {
   u.faceTo = undefined; u.stuckT = 0; u.stuckRef = { x: u.x, y: u.y };
   return true;
 }
+// Cancela la orden actual de la unidad.
 function cancelOrder(u) { u.order = null; }
 
+// CRÍTICA · Mueve cada tanque siguiendo su ruta: gira el casco, acelera según el terreno/ánimo y evita atravesar obstáculos.
 function updateMovement(u, dt) {
   const o = u.order;
   if (!o) {                                            // al llegar en formación, se orienta hacia el frente
@@ -1074,6 +1143,7 @@ function separateUnits() {
 // =====================================================================
 const PROJECTILE_SPEED = 1150;
 
+// ¿La unidad u puede atacar al objetivo t? (vivo, en alcance, visible y con línea de tiro libre).
 function canEngage(u, t) {
   if (!t.alive) return false;
   const d = dist(u.x, u.y, t.x, t.y);
@@ -1082,6 +1152,7 @@ function canEngage(u, t) {
   if (u.team === 'enemy' && d > u.spec.vision) return false;                  // el enemigo solo dispara a lo que ve
   return !losBlocked(u.x, u.y, t.x, t.y);
 }
+// Elige el enemigo más cercano al que se pueda atacar (nada si está en emboscada).
 function pickTarget(u) {
   let best = null, bd = 1e9;
   const foes = u.team === 'player' ? enemies() : players();
@@ -1112,11 +1183,13 @@ function focusFire(u, dt) {
   if (ok) { u.order.chase = true; u.order.delay = 0; }
   else { u.focus = null; if (u.team === 'player') { toast('OBJETIVO INACCESIBLE', 'warn'); playUi('error'); } }
 }
+// Ordena a un grupo de unidades atacar a un enemigo concreto.
 function commandAttack(units, foe) {
   units = units.filter(u => u && u.alive && u.team === 'player'); if (!units.length || !foe.alive || G.over) return;
   for (const u of units) { u.focus = foe; u.chaseT = 0; if (u.order && !u.order.chase) u.order = null; }
   toast('ATACAR: ' + foe.name.toUpperCase(), 'good');
 }
+// CRÍTICA · Cada fotograma: busca objetivo, gira la torreta (el StuG gira el casco), recarga y dispara.
 function updateCombat(u, dt) {
   u.targetT -= dt;
   if (u.targetT <= 0) { u.targetT = 0.22; u.target = pickTarget(u); }
@@ -1134,6 +1207,7 @@ function updateCombat(u, dt) {
   if (u.cooldown <= 0 && Math.abs(angDiff(want, u.turret)) < 0.07 && !losBlocked(u.x, u.y, tgt.x, tgt.y)) fireAt(u, tgt);
 }
 
+// CRÍTICA · Dispara: calcula dispersión según estabilidad, crea el proyectil y los efectos de sonido y humo.
 function fireAt(u, t) {
   const s = u.spec, d = dist(u.x, u.y, t.x, t.y);
   u.cooldown = s.reload * reloadMult(u) * (0.92 + Math.random() * 0.16);
@@ -1153,6 +1227,7 @@ function fireAt(u, t) {
   u.recoil = 1;
 }
 
+// CRÍTICA · Mueve los proyectiles y detecta impactos contra tanques y obstáculos; aplica daño y efectos.
 function updateProjectiles(dt) {
   const L = G.projectiles;
   for (let i = L.length - 1; i >= 0; i--) {
@@ -1191,6 +1266,7 @@ function updateProjectiles(dt) {
   }
 }
 
+// CRÍTICA · Resta vida al tanque, avisa a los sistemas de ánimo/IA/voz y lo destruye si la vida llega a 0.
 function applyDamage(t, dmg, attacker) {
   if (!t.alive || G.over) return;
   t.stats.hp = Math.max(0, t.stats.hp - dmg);
@@ -1205,6 +1281,7 @@ function applyDamage(t, dmg, attacker) {
   if (t.stats.hp <= 0) destroyUnit(t, attacker);
 }
 
+// CRÍTICA · Destruye un tanque: lo deja como restos, avisa a sus aliados y comprueba victoria/derrota.
 function destroyUnit(u, killer) {
   u.alive = false; u.order = null; u.target = null;
   G.wrecks.push({ x: u.x, y: u.y, heading: u.heading, turret: u.turret + (Math.random() - 0.5) * 0.6, tankKey: u.tankKey, commander: !!u.commanderId, t: 0, smokeT: 0, role: u.role, team: u.team });
@@ -1229,10 +1306,12 @@ function destroyUnit(u, killer) {
 // EFECTOS VISUALES (destello de boca, impactos, humo, explosiones)
 // =====================================================================
 function addFx(o) { if (G.fx.length >= CONFIG.maxFx) G.fx.shift(); G.fx.push(o); }
+// Fogonazo y humo de la boca del cañón.
 function muzzleFx(x, y, ang) {
   addFx({ k: 'flash', x, y, a: ang, t: 0, life: 0.09, size: 20 });
   for (let i = 0; i < 5; i++) { const a = ang + (Math.random() - 0.5) * 0.7, v = 60 + Math.random() * 110; addFx({ k: 'smoke', x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, t: 0, life: 0.5 + Math.random() * 0.4, size: 4 + Math.random() * 4, col: '230,230,225' }); }
 }
+// Chispas / tierra del impacto según contra qué choca.
 function impactFx(x, y, kind, dx, dy) {
   const vis = visibleToPlayer(x, y); if (!vis) return;
   if (kind === 'tank') {
@@ -1245,6 +1324,7 @@ function impactFx(x, y, kind, dx, dy) {
     for (let i = 0; i < 6; i++) addFx({ k: 'smoke', x, y, vx: (Math.random() - 0.5) * 70, vy: (Math.random() - 0.5) * 70, t: 0, life: 0.6 + Math.random() * 0.5, size: 5 + Math.random() * 6, col });
   }
 }
+// Explosión de un tanque destruido.
 function explosionFx(x, y) {
   if (!visibleToPlayer(x, y)) return;
   addFx({ k: 'ring', x, y, t: 0, life: 0.6, size: 70, col: '255,170,60' });
@@ -1252,6 +1332,7 @@ function explosionFx(x, y) {
   for (let i = 0; i < 16; i++) { const a = Math.random() * TAU, v = 60 + Math.random() * 220; addFx({ k: 'spark', x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, t: 0, life: 0.4 + Math.random() * 0.5, size: 2.5 }); }
   for (let i = 0; i < 10; i++) { const a = Math.random() * TAU, v = 20 + Math.random() * 60; addFx({ k: 'smoke', x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, t: 0, life: 1.4 + Math.random() * 1.2, size: 10 + Math.random() * 10, col: '50,50,48' }); }
 }
+// Avanza y elimina los efectos visuales.
 function updateFx(dt) {
   const L = G.fx;
   for (let i = L.length - 1; i >= 0; i--) {
@@ -1284,6 +1365,7 @@ function alertEnemies(x, y, radius, source, strong) {
   }
 }
 
+// CRÍTICA · IA enemiga: patrulla, persigue, se detiene a disparar o se queda quieta en la meseta/bosque según su tipo.
 function updateEnemyAI(u, dt) {
   const ai = u.ai; if (!ai) return;
   // EMBOSCADA: los tanques en altura no patrullan ni bajan; esperan quietos y disparan al verte
@@ -1352,6 +1434,7 @@ const VOL = Object.assign({}, VOLUME_DEFAULTS);
     try { const v = parseFloat(localStorage.getItem(VOLUME_STORAGE_PREFIX + k)); if (!isNaN(v)) VOL[k] = clamp(v, 0, 1); } catch (e) { /* sin almacenamiento */ }
   }
 })();
+// Cambia el volumen de una categoría (ui, sfx, voz, motor) y lo guarda.
 function setVolume(kind, v) {
   VOL[kind] = clamp(v, 0, 1);
   try { localStorage.setItem(VOLUME_STORAGE_PREFIX + kind, String(VOL[kind])); } catch (e) { /* ignorar */ }
@@ -1364,13 +1447,56 @@ const GVOL_KEYS = { master: 'pv_masterVol', music: 'pv_musicVol', effects: 'pv_s
 (function loadGlobalVolumes() {
   for (const k of Object.keys(GVOL)) { try { const v = parseFloat(localStorage.getItem(GVOL_KEYS[k])); if (!isNaN(v)) GVOL[k] = clamp(v, 0, 1); } catch (e) { /* sin almacenamiento */ } }
 })();
+// Cambia el volumen general / música / efectos y lo guarda en el navegador.
 function setGlobalVolume(kind, v) {
   GVOL[kind] = clamp(v, 0, 1);
   try { localStorage.setItem(GVOL_KEYS[kind], String(GVOL[kind])); } catch (e) { /* ignorar */ }
+  if (kind === 'music' || kind === 'master') musicApplyVolume();
 }
 const fxGain = () => GVOL.master * GVOL.effects;                 // factor que se aplica a TODOS los efectos de sonido
 
+// ---------------------------------------------------------------------
+// MÚSICA DE FONDO: las mismas canciones del menú, en orden aleatorio y sin repetir hasta que hayan sonado todas (luego se
+// vuelven a mezclar), pero SIN tocadiscos. Para silenciarla, baja el "Volumen de música" (o el maestro) a 0 en OPCIONES.
+// Para añadir o quitar canciones edita MUSIC.list (la ruta es relativa a la carpeta raíz del juego).
+// ---------------------------------------------------------------------
+const MUSIC = {
+  list: [
+    'assets/audio/Yuki no Shingun.mp3',
+    'assets/audio/naciones/Polyushko-polye.mp3',
+    'assets/audio/naciones/Saishuushou • Senshadou Koushinkyoku! Panzer Vor!.mp3',
+    'assets/audio/naciones/Säkkijärven polkka.mp3',
+    'assets/audio/naciones/U.S Field Artillery March.mp3',
+    'assets/audio/naciones/Gakuen toiro desu!.mp3',
+    'assets/audio/naciones/Mugen Kidou Hai Ikkaisen desu!.mp3',
+    'assets/audio/naciones/Battle Hymm of the Republic.mp3',
+    'assets/audio/naciones/Panzerlied v2.mp3'
+  ],
+  queue: [], last: null, audio: null, started: false, fails: 0
+};
+const musicGain = () => clamp(GVOL.music * GVOL.master, 0, 1);       // volumen real de la música
+function musicApplyVolume() { if (MUSIC.audio) MUSIC.audio.volume = musicGain(); }
+function musicNext() {
+  if (!MUSIC.queue.length) {                                           // baraja nueva (Fisher-Yates); evita repetir la última al empezar
+    const q = MUSIC.list.slice();
+    for (let i = q.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [q[i], q[j]] = [q[j], q[i]]; }
+    if (q.length > 1 && q[0] === MUSIC.last) q.push(q.shift());
+    MUSIC.queue = q;
+  }
+  const src = MUSIC.queue.shift(); MUSIC.last = src;
+  try {
+    const a = MUSIC.audio || (MUSIC.audio = new Audio());
+    a.onended = musicNext;
+    a.onerror = () => { if (++MUSIC.fails <= MUSIC.list.length) setTimeout(musicNext, 200); };   // si falta un archivo salta al siguiente
+    a.onplaying = () => { MUSIC.fails = 0; };
+    a.src = encodeURI(ROOT + src); a.volume = musicGain();
+    const p = a.play(); if (p && p.catch) p.catch(() => {});
+  } catch (e) { /* audio no disponible */ }
+}
+function startMusic() { if (MUSIC.started) return; MUSIC.started = true; musicNext(); }
+
 const AUD = { cache: {}, bags: {}, voiceLast: {}, fireIdx: 0, engT: 0 };
+// Reproduce un sonido (cacheado y clonado para poder solaparlos).
 function playClip(url, vol) {
   if (vol <= 0.002) return;
   try {
@@ -1380,6 +1506,7 @@ function playClip(url, vol) {
     const p = c.play(); if (p && p.catch) p.catch(() => {});
   } catch (e) { /* audio no disponible */ }
 }
+// Precarga los sonidos para que no haya retraso al sonar.
 function preloadAudio() {
   const urls = [...Object.values(AUDIO_PATHS.ui), ...AUDIO_PATHS.fire, AUDIO_PATHS.engine];
   for (const c of Object.values(COMMANDERS)) for (const list of Object.values(c.voices)) for (const f of list) urls.push(c.voiceDir + f);
@@ -1412,6 +1539,7 @@ function playEngine() {
     }, 40);
   } catch (e) { /* audio no disponible */ }
 }
+// Sonido de interfaz (clic, decidir, error…).
 function playUi(kind) { playClip(AUDIO_PATHS.ui[kind] || AUDIO_PATHS.ui.decide, VOL.ui); }
 
 // Disparos S / M / L intercalados, atenuados con la distancia a la cámara
@@ -1438,6 +1566,7 @@ function playVoice(cid, cat) {
 // CÁMARA TÁCTICA
 // =====================================================================
 const cv = { el: null, g: null };
+// Ajusta el canvas al tamaño de la ventana y a la densidad de píxeles.
 function resize() {
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   view.w = window.innerWidth; view.h = window.innerHeight; view.dpr = dpr;
@@ -1450,19 +1579,23 @@ function resize() {
 const worldToScreen = (x, y) => [(x - G.cam.x) * G.cam.zoom + view.cx, (y - G.cam.y) * G.cam.zoom + view.cy];
 const screenToWorld = (sx, sy) => [(sx - view.cx) / G.cam.zoom + G.cam.x, (sy - view.cy) / G.cam.zoom + G.cam.y];
 
+// Mantiene la cámara dentro de los límites del mapa.
 function clampCamera() {
   const c = G.cam, z = c.zoom, m = 90;
   const x0 = view.cx / z - m, x1 = MAP.w + m - view.cx / z, y0 = view.cy / z - m, y1 = MAP.h + m - view.cy / z;
   c.x = x0 > x1 ? (x0 + x1) / 2 : clamp(c.x, x0, x1);
   c.y = y0 > y1 ? (y0 + y1) / 2 : clamp(c.y, y0, y1);
 }
+// Centra la cámara en un punto.
 function centerOn(x, y) { G.cam.x = x; G.cam.y = y; clampCamera(); }
+// Zoom centrado en la posición del ratón.
 function zoomAt(sx, sy, factor) {
   const [wx, wy] = screenToWorld(sx, sy), c = G.cam;
   c.zoom = clamp(c.zoom * factor, CONFIG.zoom.min, CONFIG.zoom.max);
   c.x = wx - (sx - view.cx) / c.zoom; c.y = wy - (sy - view.cy) / c.zoom;
   clampCamera();
 }
+// Mueve la cámara con las teclas/bordes y suaviza el zoom.
 function updateCamera(dt) {
   const k = G.keys, sp = CONFIG.cameraKeySpeed / G.cam.zoom * dt;
   let dx = 0, dy = 0;
@@ -1487,6 +1620,7 @@ function drawArrow(g, x1, y1, x2, y2, col, w, dash) {
 }
 const VIS_R = u => u.r * 1.3;                       // radio visual (el de colisión es u.r)
 
+// Dibuja un tanque: casco, torreta y cañón rotados, con su imagen o forma de reemplazo.
 function drawUnitBody(g, u, alpha, ghost) {
   const R = VIS_R(u), team = u.team === 'player' ? COLORS.player : COLORS.enemy;
   g.save(); g.translate(u.x, u.y); g.globalAlpha = alpha;
@@ -1517,6 +1651,7 @@ function drawUnitBody(g, u, alpha, ghost) {
   if (u.hitFlash > 0) { g.globalAlpha = alpha * u.hitFlash * 0.7; g.fillStyle = '#ff3b2a'; g.beginPath(); g.arc(0, 0, R, 0, TAU); g.fill(); }
   g.restore();
 }
+// Dibuja los restos de un tanque destruido.
 function drawWreck(g, w) {
   const R = CONFIG.unitRadius * 1.3;
   g.save(); g.translate(w.x, w.y); g.globalAlpha = 0.92;
@@ -1529,6 +1664,7 @@ function drawWreck(g, w) {
   g.restore();
 }
 
+// Dibuja los efectos visuales (humo, fogonazos, chispas).
 function drawFx(g) {
   for (const f of G.fx) {
     const k = f.t / f.life;
@@ -1546,6 +1682,7 @@ function drawFx(g) {
     }
   }
 }
+// Dibuja los proyectiles en vuelo.
 function drawProjectiles(g) {
   g.lineCap = 'round';
   for (const p of G.projectiles) {
@@ -1557,6 +1694,7 @@ function drawProjectiles(g) {
   }
 }
 
+// CRÍTICA · Dibuja un fotograma completo: mapa, unidades, niebla, efectos y marcadores (pase del mundo + pase de pantalla).
 function render() {
   const g = cv.g, c = G.cam, S = view.dpr * c.zoom;
   g.setTransform(1, 0, 0, 1, 0, 0); g.fillStyle = '#101416'; g.fillRect(0, 0, cv.el.width, cv.el.height);
@@ -1680,10 +1818,11 @@ const UI = {};
 const MOOD_COLOR = { 'TRANQUILO': '#8fd6a0', 'ESTABLE': '#d6c98a', 'ALERTA': '#f0cf6a', 'NERVIOSO': '#f0a24a', 'ESTRESADO': '#e8683c', 'PÁNICO': '#e03a2e' };
 const barColor = (v, invert) => { const x = invert ? 100 - v : v; return x > 66 ? '#79c36a' : x > 33 ? '#e0b43a' : '#d0432f'; };
 
+// Enlaza los elementos del HTML con la lógica del juego (botones, paneles, barras).
 function bindUi() {
   pvLoader.init();
   for (const id of ['mission-title', 'mission-obj', 'panel', 'pn-img', 'pn-name', 'pn-role', 'pn-hp-fill', 'pn-hp-txt', 'pn-conf', 'pn-stress', 'pn-stab', 'pn-mood',
-    'pn-passive', 'pn-allies', 'pn-stats', 'pn-empty', 'pn-body', 'pn-head', 'pick', 'btn-cmd', 'btn-idle', 'btn-pause', 'btn-menu', 'btn-mission', 'mission-pop', 'btn-form', 'form-fly', 'ui-tip', 'toasts', 'end', 'end-title', 'end-text',
+    'pn-passive', 'pn-allies', 'pn-stats', 'pn-empty', 'pn-body', 'pn-head', 'pick', 'btn-cmd', 'btn-idle', 'btn-menu', 'btn-mission', 'mission-pop', 'btn-form', 'form-fly', 'ui-tip', 'toasts', 'end', 'end-title', 'end-text',
     'end-stats', 'btn-continue', 'btn-retry', 'btn-menu2', 'loading', 'load-msg', 'btn-start', 'pause-ov', 'btn-resume', 'btn-opts', 'btn-opts-back', 'btn-quit', 'btn-quit-yes', 'btn-quit-no', 'load-obj']) UI[id] = $(id);
   UI.mission_title = UI['mission-title']; UI.mission_obj = UI['mission-obj'];
   UI['mission-title'].textContent = MISSION.title;
@@ -1697,14 +1836,13 @@ function bindUi() {
   initUiExtras();
   UI['btn-cmd'].addEventListener('click', goToCommander);
   UI['btn-idle'].addEventListener('click', goToIdleUnit);
-  UI['btn-pause'].addEventListener('click', openPause);            // ❚❚ = abre el menú de pausa
   UI['btn-resume'].addEventListener('click', closePause);
   UI['btn-opts'].addEventListener('click', () => pmShow('opts'));
   UI['btn-opts-back'].addEventListener('click', () => pmShow('main'));
   UI['btn-quit'].addEventListener('click', () => pmShow('confirm')); // SALIR pide confirmación
   UI['btn-quit-no'].addEventListener('click', () => pmShow('main'));
   UI['btn-quit-yes'].addEventListener('click', goMenu);
-  UI['btn-menu'].addEventListener('click', () => { openPause(); pmShow('confirm'); });   // botón MENÚ de arriba: también confirma
+  UI['btn-menu'].addEventListener('click', openPause);   // botón MENÚ de arriba: abre la pausa (Volver a la partida / Opciones / Volver al menú)
   UI['btn-menu2'].addEventListener('click', goMenu);               // desde la pantalla final no hay progreso que perder
   // Sliders de volumen global (opciones de la pausa)
   const gmap = { master: 'master', music: 'music', sfx: 'effects' };
@@ -1725,6 +1863,7 @@ function setCommander(id) {
   UI.pick.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.id === id));
   if (FOG.exCtx) resetMission();
 }
+// Construye el selector de comandante del panel.
 function buildPicker() {
   UI.pick.innerHTML = '';
   for (const c of Object.values(COMMANDERS)) {
@@ -1734,9 +1873,11 @@ function buildPicker() {
   }
   UI.pick.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.id === MISSION.player.commander));
 }
+// Vuelve al menú principal con la pantalla de carga.
 function goMenu() { pvLoader.show(); setTimeout(() => { location.href = CONFIG.menuUrl; }, 1100); }   // sale con la pantalla de carga
 
 let lastToast = { msg: '', t: 0 };
+// Muestra un aviso temporal en pantalla.
 function toast(msg, kind) {
   const now = performance.now();
   if (msg === lastToast.msg && now - lastToast.t < 1200) return;
@@ -1748,12 +1889,15 @@ function toast(msg, kind) {
   setTimeout(() => { d.classList.add('out'); setTimeout(() => d.remove(), 450); }, 2600);
 }
 
+// Pone el ancho de una barra de estadística.
 function setBar(el, v) { el.firstElementChild.style.width = clamp(v, 0, 100) + '%'; el.firstElementChild.style.background = barColor(v); }
+// Actualiza una fila de estadística (valor y color).
 function setStatRow(id, v, invert) {
   const row = UI[id], f = row.querySelector('i'), n = row.querySelector('b');
   f.style.width = clamp(v, 0, 100) + '%'; f.style.background = barColor(v, invert); n.textContent = Math.round(v);
 }
 let panelKey = '';
+// Actualiza el panel de la unidad seleccionada (vida, ánimo, estadísticas).
 function updatePanel() {
   const u = G.selected && G.selected.alive ? G.selected : (G.inspect && G.inspect.alive && G.inspect.spotted ? G.inspect : null);
   const allies = G.units.filter(x => x.team === 'player'), alive = allies.filter(x => x.alive).length;
@@ -1807,18 +1951,22 @@ function selectUnits(list, voice) {
   }
   updatePanel();
 }
+// Selecciona una sola unidad (o ninguna).
 function selectUnit(u, voice) { selectUnits(u ? [u] : [], voice); }
 // ---- Botones de imagen, carpeta de misión, formaciones y tooltips ----
 function closePops() { UI['mission-pop'].classList.remove('on'); UI['btn-mission'].classList.remove('on'); UI['form-fly'].classList.remove('on'); }
+// Pone una imagen (o una letra de reemplazo) en un botón.
 function setBtnImage(btn, im, letter) {
   btn.innerHTML = im ? '<img alt="" src="' + im.src + '">' : '<span class="ph">' + letter + '</span>';
 }
+// Configura los botones de la barra inferior.
 function setupBottomButtons() {
   const P = MISSION.player;
   setBtnImage(UI['btn-cmd'], IMGS['cmd:' + P.commander], COMMANDERS[P.commander].name[0]);   // retrato del comandante elegido
   setBtnImage(UI['btn-idle'], IMGS['tank:' + P.crewTank], 'T');                              // un tanque genérico
 }
 const formIcon = k => '<svg viewBox="0 0 24 24" aria-hidden="true">' + FORMATIONS[k].pts.map(p => '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="2.4"/>').join('') + '</svg>';
+// Cambia la formación en la que se mueven las unidades.
 function setFormation(k, silent) {
   if (!FORMATIONS[k]) return;
   G.formation = k;
@@ -1827,6 +1975,7 @@ function setFormation(k, silent) {
   document.querySelectorAll('.fopt').forEach(b => b.classList.toggle('cur', b.dataset.form === k));
   if (!silent) toast(FORMATIONS[k].name, 'good');
 }
+// Inicializa carpeta de misión, formaciones y los tooltips de todos los botones.
 function initUiExtras() {
   // carpeta de misión
   UI['btn-mission'].addEventListener('click', e => { e.stopPropagation(); const on = !UI['mission-pop'].classList.contains('on'); closePops(); if (on) { UI['mission-pop'].classList.add('on'); UI['btn-mission'].classList.add('on'); } });
@@ -1850,12 +1999,15 @@ function initUiExtras() {
   document.addEventListener('pointerdown', hide);                                  // al hacer clic el cartel se oculta (no tapa lo que se abre)
   window.addEventListener('blur', hide);
 }
+// Centra la cámara en el comandante.
 function goToCommander() {
   const c = commanderUnit();
   if (!c || !c.alive) { toast('EL COMANDANTE HA CAÍDO', 'warn'); return; }
   selectUnit(c, true); centerOn(c.x, c.y);
 }
+// Unidades sin orden y sin disparar hace unos segundos.
 function idleUnits() { return players().filter(u => !u.commanderId && !u.order && G.time - u.lastFireT > 2.5); }
+// Centra la cámara en la siguiente unidad inactiva.
 function goToIdleUnit() {
   const L = idleUnits();
   if (!L.length) { toast('NO HAY UNIDADES INACTIVAS', 'warn'); playUi('error'); return; }
@@ -1864,9 +2016,13 @@ function goToIdleUnit() {
 }
 // ---- Menú de pausa (ESC) ----
 function pmShow(view) { for (const v of ['main', 'opts', 'confirm']) $('pm-' + v).classList.toggle('on', v === view); }
+// Devuelve qué vista del menú de pausa está abierta.
 function pmView() { for (const v of ['opts', 'confirm']) if ($('pm-' + v).classList.contains('on')) return v; return 'main'; }
+// Abre el menú de pausa y detiene el juego.
 function openPause() { if (!G.started || G.over || G.paused) return; G.paused = true; G.keys = {}; pmShow('main'); UI['pause-ov'].classList.add('show'); }
+// Cierra el menú de pausa y reanuda.
 function closePause() { G.paused = false; UI['pause-ov'].classList.remove('show'); }
+// Alterna la pausa.
 function togglePause() { if (G.paused) closePause(); else openPause(); }
 // ESC: abre la pausa; dentro de ella retrocede (confirmación/opciones → principal) y, desde la principal, reanuda
 function escapeKey() {
@@ -1876,6 +2032,7 @@ function escapeKey() {
   else if (pmView() !== 'main') pmShow('main');
   else closePause();
 }
+// Intenta mover una unidad; avisa si el destino es inaccesible.
 function tryMove(u, x, y) {
   if (!u || !u.alive || u.team !== 'player' || G.over) return;
   u.focus = null;
@@ -1890,6 +2047,7 @@ const FORMATIONS = {
   column: { name: 'FORMACIÓN EN COLUMNA', pts: [[12, 3], [12, 8.5], [12, 14], [12, 19.5]] },
   line:   { name: 'FORMACIÓN EN LÍNEA', pts: [[3, 12], [8.5, 12], [14, 12], [19.5, 12]] }
 };
+// Calcula la posición de cada unidad en la formación elegida alrededor del destino.
 function formationSlots(units, x, y) {
   let cx = 0, cy = 0; for (const u of units) { cx += u.x; cy += u.y; } cx /= units.length; cy /= units.length;
   let dx = x - cx, dy = y - cy, L = Math.hypot(dx, dy);
@@ -1920,6 +2078,7 @@ function formationSlots(units, x, y) {
   }
   return out;
 }
+// CRÍTICA · Orden de movimiento del jugador a un grupo, respetando la formación.
 function commandMove(units, x, y) {
   units = units.filter(u => u && u.alive && u.team === 'player'); if (!units.length || G.over) return;
   for (const u of units) u.focus = null;                                     // una orden de movimiento cancela el ataque dirigido
@@ -1938,11 +2097,13 @@ function unitAt(wx, wy, list) {
   for (const u of list) { const d = dist(u.x, u.y, wx, wy); if (d < VIS_R(u) + 8 / G.cam.zoom && d < bd) { best = u; bd = d; } }
   return best;
 }
+// Guarda la posición del ratón en pantalla y en el mundo.
 function updateMouse(e) {
   const r = cv.el.getBoundingClientRect();
   G.mouse.sx = e.clientX - r.left; G.mouse.sy = e.clientY - r.top;
   [G.mouse.wx, G.mouse.wy] = screenToWorld(G.mouse.sx, G.mouse.sy);
 }
+// CRÍTICA · Enlaza teclado y ratón: selección por caja, clic derecho para mover/atacar, zoom, formaciones y atajos.
 function bindInput() {
   const el = cv.el;
   el.addEventListener('contextmenu', e => e.preventDefault());
@@ -2032,16 +2193,19 @@ function endStats() {
     '<div><span>ALIADOS VIVOS</span><b>' + mine.filter(u => u.alive).length + '/' + mine.length + '</b></div>' +
     '<div><span>ENEMIGOS DESTRUIDOS</span><b>' + foes.filter(u => !u.alive).length + '/' + foes.length + '</b></div>';
 }
+// Termina la misión con victoria.
 function triggerVictory() {
   if (G.over) return;
   G.over = 'victory'; G.overT = 0; G.drag = null; G.pan = null;
   toast('¡TANQUE BANDERA DESTRUIDO!', 'good');
   const f = G.units.find(u => u.role === 'flag'); if (f) { G.cam.tx = f.x; G.cam.ty = f.y; }
 }
+// Termina la misión con derrota (con el motivo).
 function triggerDefeat(reason) {
   if (G.over) return;
   G.over = 'defeat'; G.overT = 0; G.drag = null; G.pan = null; G.defeatReason = reason;
 }
+// Muestra la pantalla de resultados.
 function showEnd() {
   const win = G.over === 'victory';
   UI.end.className = 'show ' + G.over;
@@ -2068,6 +2232,7 @@ function resetMission() {
   const c = commanderUnit(); selectUnit(c, false); G.cam.zoom = CONFIG.zoom.start; centerOn(c.x, c.y);
 }
 
+// CRÍTICA · Un paso de simulación: cámara, estadísticas, visión, IA, movimiento, combate, proyectiles y efectos.
 function step(dt) {
   updateCamera(dt);
   if (!G.started || G.paused) return;
@@ -2094,19 +2259,23 @@ function step(dt) {
 }
 
 let lastT = 0;
+// Bucle principal (requestAnimationFrame): calcula dt, llama a step y render.
 function frame(t) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.05, (t - lastT) / 1000 || 0.016); lastT = t;
   try { step(dt * CONFIG.gameSpeed); render(); } catch (e) { console.error(e); }
 }
 
+// Empieza la partida al pulsar el botón de inicio.
 function startGame() {
   UI.loading.classList.add('hide');
   G.started = true; G.paused = false;
+  startMusic();
   setupBottomButtons();
   playVoice(MISSION.player.commander, 'select');
 }
 
+// CRÍTICA · Arranque: carga imágenes y audio, prepara el mapa, la interfaz y el teclado/ratón.
 async function init() {
   cv.el = $('game'); cv.g = cv.el.getContext('2d', { alpha: false });
   bindUi(); resize(); bindInput();

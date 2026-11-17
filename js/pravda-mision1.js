@@ -256,7 +256,7 @@ const MISSION = {
 const PARTS = [
   { n: 1, label: 'DEFENSA', map: () => MAPA_PRAVDA,
     objective: 'Defender la posición',
-    brief: 'Kuromorimine atacará esta posición en dos asaltos: 8 y 10 tanques (Tiger y Panther) por el oeste. Tienes 5 minutos para organizar a tus unidades (puedes saltar la espera). Cada enemigo destruido suma 100 puntos, cada aliado perdido resta 25, y cada 160 puntos puedes llamar un T-34 de refuerzo. Tus 2 KV-2 son exclusivos: úsalos con cuidado. Si el comandante cae, o el enemigo captura la posición, la misión fracasa.',
+    brief: 'Defiende la posición de dos asaltos de Kuromorimine. Los puntos de cada baja sirven para llamar T-34. Si cae el comandante, pierdes.',
     hint: false, ambush: false, flagWins: false }
 ];
 const curPart = () => PARTS[(G.part || 1) - 1];
@@ -1565,8 +1565,49 @@ const GVOL_KEYS = { master: 'pv_masterVol', music: 'pv_musicVol', effects: 'pv_s
 function setGlobalVolume(kind, v) {
   GVOL[kind] = clamp(v, 0, 1);
   try { localStorage.setItem(GVOL_KEYS[kind], String(GVOL[kind])); } catch (e) { /* ignorar */ }
+  if (kind === 'music' || kind === 'master') musicApplyVolume();
 }
 const fxGain = () => GVOL.master * GVOL.effects;                 // factor que se aplica a TODOS los efectos de sonido
+
+// ---------------------------------------------------------------------
+// MÚSICA DE FONDO: las mismas canciones del menú, en orden aleatorio y sin repetir hasta que hayan sonado todas (luego se
+// vuelven a mezclar), pero SIN tocadiscos. Para silenciarla, baja el "Volumen de música" (o el maestro) a 0 en OPCIONES.
+// Para añadir o quitar canciones edita MUSIC.list (la ruta es relativa a la carpeta raíz del juego).
+// ---------------------------------------------------------------------
+const MUSIC = {
+  list: [
+    'assets/audio/Yuki no Shingun.mp3',
+    'assets/audio/naciones/Polyushko-polye.mp3',
+    'assets/audio/naciones/Saishuushou • Senshadou Koushinkyoku! Panzer Vor!.mp3',
+    'assets/audio/naciones/Säkkijärven polkka.mp3',
+    'assets/audio/naciones/U.S Field Artillery March.mp3',
+    'assets/audio/naciones/Gakuen toiro desu!.mp3',
+    'assets/audio/naciones/Mugen Kidou Hai Ikkaisen desu!.mp3',
+    'assets/audio/naciones/Battle Hymm of the Republic.mp3',
+    'assets/audio/naciones/Panzerlied v2.mp3'
+  ],
+  queue: [], last: null, audio: null, started: false, fails: 0
+};
+const musicGain = () => clamp(GVOL.music * GVOL.master, 0, 1);       // volumen real de la música
+function musicApplyVolume() { if (MUSIC.audio) MUSIC.audio.volume = musicGain(); }
+function musicNext() {
+  if (!MUSIC.queue.length) {                                           // baraja nueva (Fisher-Yates); evita repetir la última al empezar
+    const q = MUSIC.list.slice();
+    for (let i = q.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [q[i], q[j]] = [q[j], q[i]]; }
+    if (q.length > 1 && q[0] === MUSIC.last) q.push(q.shift());
+    MUSIC.queue = q;
+  }
+  const src = MUSIC.queue.shift(); MUSIC.last = src;
+  try {
+    const a = MUSIC.audio || (MUSIC.audio = new Audio());
+    a.onended = musicNext;
+    a.onerror = () => { if (++MUSIC.fails <= MUSIC.list.length) setTimeout(musicNext, 200); };   // si falta un archivo salta al siguiente
+    a.onplaying = () => { MUSIC.fails = 0; };
+    a.src = encodeURI(ROOT + src); a.volume = musicGain();
+    const p = a.play(); if (p && p.catch) p.catch(() => {});
+  } catch (e) { /* audio no disponible */ }
+}
+function startMusic() { if (MUSIC.started) return; MUSIC.started = true; musicNext(); }
 
 const AUD = { cache: {}, bags: {}, voiceLast: {}, fireIdx: 0, engT: 0 };
 // Reproduce un sonido (cacheado y clonado para poder solaparlos).
@@ -1920,7 +1961,7 @@ const barColor = (v, invert) => { const x = invert ? 100 - v : v; return x > 66 
 function bindUi() {
   pvLoader.init();
   for (const id of ['mission-title', 'mission-obj', 'panel', 'pn-img', 'pn-name', 'pn-role', 'pn-hp-fill', 'pn-hp-txt', 'pn-conf', 'pn-stress', 'pn-stab', 'pn-mood',
-    'pn-passive', 'pn-allies', 'pn-stats', 'pn-empty', 'pn-body', 'pn-head', 'pick', 'btn-cmd', 'btn-idle', 'btn-pause', 'btn-menu', 'btn-mission', 'mission-pop', 'btn-form', 'form-fly', 'ui-tip', 'toasts', 'end', 'end-title', 'end-text',
+    'pn-passive', 'pn-allies', 'pn-stats', 'pn-empty', 'pn-body', 'pn-head', 'pick', 'btn-cmd', 'btn-idle', 'btn-menu', 'btn-mission', 'mission-pop', 'btn-form', 'form-fly', 'ui-tip', 'toasts', 'end', 'end-title', 'end-text',
     'end-stats', 'btn-continue', 'btn-retry', 'btn-menu2', 'loading', 'load-msg', 'btn-start', 'pause-ov', 'btn-resume', 'btn-opts', 'btn-opts-back', 'btn-quit', 'btn-quit-yes', 'btn-quit-no', 'load-obj', 'load-brief', 'mission-part', 'cine-bars', 'cine-fade', 'cine-cap', 'cine-cap-s', 'cine-cap-b',
     'btn-reinf', 'reinf-pts', 'reinf-count', 'reinf-bar', 'reinf-sub', 'phase-box', 'phase-title', 'phase-time', 'phase-sub', 'btn-skip', 'cap-box', 'cap-fill', 'cap-txt']) UI[id] = $(id);
   UI.mission_title = UI['mission-title']; UI.mission_obj = UI['mission-obj'];
@@ -1933,14 +1974,13 @@ function bindUi() {
   initUiExtras();
   UI['btn-cmd'].addEventListener('click', goToCommander);
   UI['btn-idle'].addEventListener('click', goToIdleUnit);
-  UI['btn-pause'].addEventListener('click', openPause);            // ❚❚ = abre el menú de pausa
   UI['btn-resume'].addEventListener('click', closePause);
   UI['btn-opts'].addEventListener('click', () => pmShow('opts'));
   UI['btn-opts-back'].addEventListener('click', () => pmShow('main'));
   UI['btn-quit'].addEventListener('click', () => pmShow('confirm')); // SALIR pide confirmación
   UI['btn-quit-no'].addEventListener('click', () => pmShow('main'));
   UI['btn-quit-yes'].addEventListener('click', goMenu);
-  UI['btn-menu'].addEventListener('click', () => { openPause(); pmShow('confirm'); });   // botón MENÚ de arriba: también confirma
+  UI['btn-menu'].addEventListener('click', openPause);   // botón MENÚ de arriba: abre la pausa (Volver a la partida / Opciones / Volver al menú)
   UI['btn-menu2'].addEventListener('click', goMenu);               // desde la pantalla final no hay progreso que perder
   // Sliders de volumen global (opciones de la pausa)
   const gmap = { master: 'master', music: 'music', sfx: 'effects' };
@@ -2499,6 +2539,7 @@ function frame(t) {
 function startGame() {
   UI.loading.classList.add('hide');
   G.started = true; G.paused = false;
+  startMusic();
   setupBottomButtons();
   playVoice(MISSION.player.commander, 'select');
 }

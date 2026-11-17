@@ -1,4 +1,5 @@
 /* ¡Panzer Vor! — St. Gloriana · Misión 1 — consola militar (oliva / latón) */
+/* ---------- Variables de color y tipografía (se usan con var(--nombre) en todo el archivo) ---------- */
 :root{
   --olive:#4a5a34; --olive-d:#222b1a; --coal:#0c110a; --khaki:#d6c98a; --brass:#f0cf6a;
   --signal:#c4402f; --paper:#e9e4cf; --panel:rgba(14,20,11,.82); --line:rgba(214,201,138,.45);
@@ -6,6 +7,7 @@
   --f-ui:'Rajdhani','Bahnschrift','Arial Narrow',sans-serif;
   --ease:cubic-bezier(.22,.8,.24,1);
 }
+/* ---------- Base: reinicio de estilos y pantalla completa sin scroll ---------- */
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{width:100%;height:100%;overflow:hidden;background:var(--coal);color:var(--paper);font-family:var(--f-ui);font-weight:600;user-select:none;-webkit-user-select:none}
 button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
@@ -14,6 +16,7 @@ button:disabled{cursor:default;opacity:.5}
 .cut{clip-path:polygon(10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%,0 10px)}
 
 /* ---------- Cabecera ---------- */
+/* Barra superior fija: carpeta de misión (izq.) y pausa/menú (der.); sus hijos sí reciben clics */
 #hud-top{position:fixed;top:12px;left:12px;right:12px;display:flex;justify-content:space-between;align-items:flex-start;pointer-events:none;z-index:10}
 #hud-top>*{pointer-events:auto}
 .mbox{padding:9px 18px 10px 16px;background:var(--panel);border:1px solid var(--line);border-left:6px solid var(--olive);box-shadow:0 6px 18px rgba(0,0,0,.45)}
@@ -58,6 +61,7 @@ button:disabled{cursor:default;opacity:.5}
 #pn-allies{margin-top:auto;padding:10px 14px;font-size:14px;letter-spacing:.2em;color:var(--brass);border-top:1px solid var(--line);text-align:center;background:rgba(0,0,0,.3)}
 
 /* ---------- Botones inferiores ---------- */
+/* Barra inferior: botones de imagen del comandante, unidades inactivas y formaciones */
 #hud-bottom{position:fixed;left:12px;bottom:14px;display:flex;align-items:stretch;gap:10px;z-index:10;flex-wrap:wrap;max-width:calc(100vw - min(330px,34vw) - 36px)}
 .act{padding:0 20px;height:44px;font-size:15px;letter-spacing:.14em;background:linear-gradient(90deg,rgba(22,30,16,.9),rgba(34,43,26,.75));border:1px solid var(--line);border-left:6px solid var(--olive);box-shadow:0 5px 14px rgba(0,0,0,.45);transition:border-color .2s,background .2s}
 .act:hover{border-left-color:var(--brass);background:linear-gradient(90deg,rgba(74,90,52,.9),rgba(34,43,26,.7))}
@@ -174,6 +178,7 @@ button:disabled{cursor:default;opacity:.5}
 @keyframes pvDraw{0%{stroke-dashoffset:100}50%{stroke-dashoffset:0}100%{stroke-dashoffset:-100}}
 @keyframes pvLogo{0%,100%{transform:scale(.96)}50%{transform:scale(1.04)}}
 @keyframes pvBlink{50%{opacity:.4}}
+/* Accesibilidad: si Windows tiene desactivadas las animaciones, la espiral gira muy lento */
 @media (prefers-reduced-motion:reduce){.pvl-spiral{animation-duration:20s!important}}
 
 /* ---------- Animaciones entre partes (barras de cine, rótulo, fundido) ---------- */
@@ -188,3 +193,16 @@ button:disabled{cursor:default;opacity:.5}
 #cine-fade{position:fixed;inset:0;background:#000;z-index:45;opacity:0;pointer-events:none;transition:opacity .9s ease}
 #cine-fade.on{opacity:1;pointer-events:auto}
 .mbox p+p{margin-top:2px}
+
+/* Botón REFUERZOS (parte 2) */
+#btn-reinf{position:relative;overflow:hidden;min-width:170px;padding:4px 18px;text-align:center;color:#fff;background:linear-gradient(180deg,rgba(74,90,52,.95),rgba(34,43,26,.92));border:1px solid var(--brass);border-left:6px solid var(--brass);box-shadow:0 5px 14px rgba(0,0,0,.5);transition:transform .15s,filter .2s}
+#btn-reinf:hover:not(:disabled){transform:translateY(-2px)}
+#btn-reinf:disabled{filter:grayscale(.8) brightness(.6);cursor:default;border-color:var(--line)}
+#btn-reinf.ready{animation:reinfPulse 1.8s ease-in-out infinite}
+#btn-reinf .rb-title{display:block;font-family:var(--f-title);font-size:17px;letter-spacing:.1em;text-shadow:0 2px 6px #000}
+#btn-reinf .rb-title kbd{margin-left:6px;padding:0 6px;font:inherit;font-size:12px;color:var(--brass);border:1px solid var(--line)}
+#btn-reinf .rb-sub{display:block;font-size:12px;letter-spacing:.16em;color:var(--brass);text-shadow:0 1px 3px #000}
+#btn-reinf::after{content:'';position:absolute;top:-20%;bottom:-20%;left:-60%;width:40%;background:linear-gradient(100deg,transparent,rgba(255,255,255,.85),transparent);transform:skewX(-20deg);opacity:0;pointer-events:none}
+#btn-reinf.shine::after{animation:reinfShine .9s ease-out}
+@keyframes reinfShine{0%{left:-60%;opacity:1}100%{left:130%;opacity:1}}
+@keyframes reinfPulse{0%,100%{box-shadow:0 5px 14px rgba(0,0,0,.5),0 0 0 rgba(240,207,106,0)}50%{box-shadow:0 5px 14px rgba(0,0,0,.5),0 0 18px rgba(240,207,106,.6)}}
